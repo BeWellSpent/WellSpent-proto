@@ -1,0 +1,8 @@
+version: v2
+name: buf.build/mauro-afa91/spendsense
+lint:
+  use:
+    - DEFAULT
+breaking:
+  use:
+    - FILE

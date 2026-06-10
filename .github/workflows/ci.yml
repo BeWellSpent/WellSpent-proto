@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  proto:
+    name: Lint and breaking change check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: bufbuild/buf-action@v1
+        with:
+          token: ${{ secrets.BUF_TOKEN }}
+          lint: true
+          format: true
+          breaking: true
+          breaking_against: https://github.com/${{ github.repository }}.git#branch=main
+          push: false

@@ -1,0 +1,20 @@
+name: Publish
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    name: Push to Buf Schema Registry
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: bufbuild/buf-action@v1
+        with:
+          token: ${{ secrets.BUF_TOKEN }}
+          push: true
+          lint: false
+          format: false
+          breaking: false
