@@ -87,7 +87,9 @@ message Transaction {
 message Category {
   int32 id = 1;
   string name = 2;
-  bool is_system = 3;
+  reserved 3;
+  reserved "type_id";
+  bool is_system = 4;
 }
 
 message PaymentMethod {
