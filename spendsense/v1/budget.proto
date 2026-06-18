@@ -87,8 +87,7 @@ message Transaction {
 message Category {
   int32 id = 1;
   string name = 2;
-  reserved 3;
-  reserved "type_id";
+  int32 type_id = 3;
   bool is_system = 4;
 }
 
