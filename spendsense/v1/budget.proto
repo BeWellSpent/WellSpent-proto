@@ -64,10 +64,11 @@ message BudgetPerson {
 message IncomeEntry {
   int64 id = 1;
   string budget_id = 2;
-  string user_id = 3; // empty when income belongs to the budget owner directly
+  string user_id = 3 [deprecated = true];
   string name = 4;
   Money amount = 5;
   bool recurring = 6;
+  int64 budget_person_id = 7; // 0 = unattributed
 }
 
 message Transaction {
@@ -176,7 +177,8 @@ message AddIncomeEntryRequest {
   string name = 2;
   Money amount = 3;
   bool recurring = 4;
-  string user_id = 5; // optional
+  string user_id = 5 [deprecated = true];
+  int64 budget_person_id = 6; // 0 = unattributed
 }
 
 message AddIncomeEntryResponse {
@@ -197,6 +199,7 @@ message UpdateIncomeEntryRequest {
   string name = 3;
   Money amount = 4;
   bool recurring = 5;
+  int64 budget_person_id = 6; // 0 = unattributed
 }
 
 message UpdateIncomeEntryResponse {
