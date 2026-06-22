@@ -64,8 +64,7 @@ message BudgetPerson {
 message IncomeEntry {
   int64 id = 1;
   string budget_id = 2;
-  reserved 3;
-  reserved "user_id";
+  string user_id = 3 [deprecated = true];
   string name = 4;
   Money amount = 5;
   bool recurring = 6;
@@ -178,8 +177,7 @@ message AddIncomeEntryRequest {
   string name = 2;
   Money amount = 3;
   bool recurring = 4;
-  reserved 5;
-  reserved "user_id";
+  string user_id = 5 [deprecated = true];
   int64 budget_person_id = 6; // 0 = unattributed
 }
 
