@@ -16,6 +16,7 @@ jobs:
           token: ${{ secrets.BUF_TOKEN }}
           lint: false
           format: false
-          breaking: true
-          breaking_against: buf.build/xpendsense/spendsense
+          breaking: false
+          # breaking check disabled for intentional v2 architectural rework
+          # restore to: breaking: true / breaking_against: buf.build/xpendsense/spendsense
           push: true
