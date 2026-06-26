@@ -35,6 +35,12 @@ service BudgetService {
   rpc ListIncomeEntries(ListIncomeEntriesRequest) returns (ListIncomeEntriesResponse);
   rpc UpdateIncomeEntry(UpdateIncomeEntryRequest) returns (UpdateIncomeEntryResponse);
 
+  // Savings sources — profile-level allocations
+  rpc AddSavingsSource(AddSavingsSourceRequest) returns (AddSavingsSourceResponse);
+  rpc ListSavingsSources(ListSavingsSourcesRequest) returns (ListSavingsSourcesResponse);
+  rpc UpdateSavingsSource(UpdateSavingsSourceRequest) returns (UpdateSavingsSourceResponse);
+  rpc DeleteSavingsSource(DeleteSavingsSourceRequest) returns (DeleteSavingsSourceResponse);
+
   // Transactions — period-scoped
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
   rpc CreateTransaction(CreateTransactionRequest) returns (CreateTransactionResponse);
@@ -93,6 +99,7 @@ message IncomeSource {
   Money default_amount = 5;
   bool recurring = 6;
   int64 budget_person_id = 7; // 0 = unattributed
+  RecurringType payment_frequency = 8; // how often the income is received (weekly, bi-weekly, monthly)
 }
 
 // Actual income amount for one period. Pre-filled from IncomeSource.default_amount;
@@ -104,6 +111,17 @@ message IncomeEntry {
   string name = 4; // denormalized from source for display
   Money amount = 5;
   int64 budget_person_id = 6; // 0 = unattributed, denormalized from source
+}
+
+// A planned savings allocation on the profile. Carries forward every period.
+message SavingsSource {
+  int64 id = 1;
+  string budget_profile_id = 2;
+  string name = 3;
+  Money amount = 4;               // per-occurrence amount (e.g. $200 per paycheck)
+  RecurringType frequency = 5;    // how often this saving is made
+  bool recurring = 6;             // carries forward to the next period
+  int64 budget_person_id = 7;     // 0 = unattributed
 }
 
 // A spend, saving, or fixed expense within a period.
@@ -247,6 +265,7 @@ message AddIncomeSourceRequest {
   Money default_amount = 4;
   bool recurring = 5;
   int64 budget_person_id = 6; // 0 = unattributed
+  RecurringType payment_frequency = 7;
 }
 
 message AddIncomeSourceResponse {
@@ -269,6 +288,7 @@ message UpdateIncomeSourceRequest {
   Money default_amount = 5;
   bool recurring = 6;
   int64 budget_person_id = 7;
+  RecurringType payment_frequency = 8;
 }
 
 message UpdateIncomeSourceResponse {
@@ -302,6 +322,50 @@ message UpdateIncomeEntryRequest {
 message UpdateIncomeEntryResponse {
   IncomeEntry entry = 1;
 }
+
+// ─── Savings sources ─────────────────────────────────────────────────────────
+
+message AddSavingsSourceRequest {
+  string budget_profile_id = 1;
+  string name = 2;
+  Money amount = 3;
+  RecurringType frequency = 4;
+  bool recurring = 5;
+  int64 budget_person_id = 6; // 0 = unattributed
+}
+
+message AddSavingsSourceResponse {
+  SavingsSource source = 1;
+}
+
+message ListSavingsSourcesRequest {
+  string budget_profile_id = 1;
+}
+
+message ListSavingsSourcesResponse {
+  repeated SavingsSource sources = 1;
+}
+
+message UpdateSavingsSourceRequest {
+  int64 id = 1;
+  string budget_profile_id = 2;
+  string name = 3;
+  Money amount = 4;
+  RecurringType frequency = 5;
+  bool recurring = 6;
+  int64 budget_person_id = 7;
+}
+
+message UpdateSavingsSourceResponse {
+  SavingsSource source = 1;
+}
+
+message DeleteSavingsSourceRequest {
+  int64 id = 1;
+  string budget_profile_id = 2;
+}
+
+message DeleteSavingsSourceResponse {}
 
 // ─── Transactions ────────────────────────────────────────────────────────────
 
