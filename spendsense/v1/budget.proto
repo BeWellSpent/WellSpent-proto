@@ -126,6 +126,8 @@ message SavingsSource {
   RecurringType frequency = 5; // how often this saving is made
   bool is_tax_reserve = 6; // auto-managed by system; recalculated on each budget roll
   int64 budget_person_id = 7;
+  optional Money federal_amount = 8; // monthly federal tax component (tax reserve only)
+  optional Money state_amount = 9; // monthly state tax component (tax reserve only)
 }
 
 // A spend, saving, or fixed expense within a period.
