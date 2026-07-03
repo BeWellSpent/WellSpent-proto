@@ -142,7 +142,7 @@ message SavingsSource {
 message Transaction {
   string id = 1;
   string name = 2;
-  Money amount = 3;          // actual paid amount (set when is_paid = true); equals planned_amount otherwise
+  Money amount = 3; // actual paid amount (set when is_paid = true); equals planned_amount otherwise
   Money planned_amount = 4;
   google.protobuf.Timestamp date = 5;
   google.protobuf.Timestamp renewal_date = 6; // when a recurring fixed tx expires
