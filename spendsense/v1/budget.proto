@@ -65,6 +65,12 @@ service BudgetService {
   rpc ListExpenseAllocations(ListExpenseAllocationsRequest) returns (ListExpenseAllocationsResponse);
   rpc UpsertExpenseAllocation(UpsertExpenseAllocationRequest) returns (UpsertExpenseAllocationResponse);
   rpc DeleteExpenseAllocation(DeleteExpenseAllocationRequest) returns (DeleteExpenseAllocationResponse);
+
+  // Fixed expenses — profile-level recurring bill templates
+  rpc ListFixedExpenses(ListFixedExpensesRequest) returns (ListFixedExpensesResponse);
+  rpc CreateFixedExpense(CreateFixedExpenseRequest) returns (CreateFixedExpenseResponse);
+  rpc UpdateFixedExpense(UpdateFixedExpenseRequest) returns (UpdateFixedExpenseResponse);
+  rpc DeleteFixedExpense(DeleteFixedExpenseRequest) returns (DeleteFixedExpenseResponse);
 }
 
 // ─── Core entities ───────────────────────────────────────────────────────────
@@ -154,6 +160,20 @@ message Transaction {
   int32 transaction_type_id = 12;
   bool is_paid = 13;
   google.protobuf.Timestamp paid_at = 14;
+  string fixed_expense_id = 15; // set when spawned from a FixedExpense template
+}
+
+// Profile-level template for a recurring fixed expense.
+// Spawns one transaction per budget period via createNextPeriod.
+message FixedExpense {
+  string id = 1;
+  string budget_profile_id = 2;
+  string name = 3;
+  Money planned_amount = 4;
+  int32 category_id = 5; // 0 = unset
+  string payment_method_id = 6; // empty = unset
+  int32 day_of_month = 7; // 1–31; clamped to last day of month when needed
+  bool is_active = 8;
 }
 
 message Category {
@@ -574,3 +594,48 @@ message DeleteExpenseAllocationRequest {
 }
 
 message DeleteExpenseAllocationResponse {}
+
+// ─── Fixed expenses ───────────────────────────────────────────────────────────
+
+message ListFixedExpensesRequest {
+  string budget_profile_id = 1;
+}
+
+message ListFixedExpensesResponse {
+  repeated FixedExpense expenses = 1;
+}
+
+message CreateFixedExpenseRequest {
+  string budget_profile_id = 1;
+  string name = 2;
+  Money planned_amount = 3;
+  int32 category_id = 4; // 0 = unset
+  string payment_method_id = 5; // empty = unset
+  int32 day_of_month = 6;
+}
+
+message CreateFixedExpenseResponse {
+  FixedExpense expense = 1;
+  Transaction transaction = 2; // spawned in the current period
+}
+
+message UpdateFixedExpenseRequest {
+  string id = 1;
+  string budget_profile_id = 2;
+  string name = 3;
+  Money planned_amount = 4;
+  int32 category_id = 5;
+  string payment_method_id = 6;
+  int32 day_of_month = 7;
+}
+
+message UpdateFixedExpenseResponse {
+  FixedExpense expense = 1;
+}
+
+message DeleteFixedExpenseRequest {
+  string id = 1;
+  string budget_profile_id = 2;
+}
+
+message DeleteFixedExpenseResponse {}
