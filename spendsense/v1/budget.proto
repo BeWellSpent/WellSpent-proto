@@ -48,6 +48,7 @@ service BudgetService {
   rpc UpdateTransaction(UpdateTransactionRequest) returns (UpdateTransactionResponse);
   rpc DeleteTransaction(DeleteTransactionRequest) returns (DeleteTransactionResponse);
   rpc MarkTransactionAsPaid(MarkTransactionAsPaidRequest) returns (MarkTransactionAsPaidResponse);
+  rpc UnmarkTransactionAsPaid(UnmarkTransactionAsPaidRequest) returns (UnmarkTransactionAsPaidResponse);
 
   // Categories — user-scoped, unchanged
   rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse);
@@ -489,6 +490,15 @@ message MarkTransactionAsPaidRequest {
 }
 
 message MarkTransactionAsPaidResponse {
+  Transaction transaction = 1;
+}
+
+message UnmarkTransactionAsPaidRequest {
+  string id = 1;
+  string budget_period_id = 2;
+}
+
+message UnmarkTransactionAsPaidResponse {
   Transaction transaction = 1;
 }
 
