@@ -26,9 +26,42 @@ buf breaking --against .git#branch=main   # check for breaking changes vs main
 
 1. Add the RPC to the relevant `.proto` file's service block
 2. Add request/response message types in the same file
-3. Run `buf lint` — fix any issues before pushing
-4. Push to `main` — CI runs breaking change detection, then publishes to BSR
-5. In the backend: `make generate` to pull updated Go types, then implement the handler
+3. Run `buf lint` — fix any issues before committing
+4. Commit, push to `develop`, create a PR to `main`, and enable auto-merge (see Git workflow below)
+5. Once the PR merges, CI publishes to BSR — then run `make generate` in the backend to pull updated Go types
+
+## Git workflow
+
+`main` is production. Never commit or push directly to `main`. Pushing to `main` triggers BSR publishing — always go through a PR.
+
+**Before starting any work:**
+
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b feature/<name>
+```
+
+**Final steps after any proto change:**
+
+```bash
+# Lint before committing
+buf lint
+
+# Stage and commit
+git add spendsense/v1/...
+git commit -m "feat: meaningful description of what changed"
+git push origin feature/<name>
+
+# Create PR from feature branch → main and immediately enable auto-merge
+gh pr create --base main --head feature/<name> --title "Short title" --body "Description"
+gh pr merge feature/<name> --auto --merge
+```
+
+- Always pull `develop` before branching — never start from a stale base
+- Always branch off `develop` with a `feature/<name>` branch; never commit directly to `develop` or `main`
+- `gh pr merge --auto` enables auto-merge — the PR lands and BSR publishing triggers once CI passes
+- Never push directly to `main` — breaking change detection runs in CI on PRs to `main`
 
 ## Breaking changes
 
