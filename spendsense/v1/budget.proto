@@ -24,6 +24,7 @@ service BudgetService {
   rpc AddBudgetPeople(AddBudgetPeopleRequest) returns (AddBudgetPeopleResponse);
   rpc ListBudgetPeople(ListBudgetPeopleRequest) returns (ListBudgetPeopleResponse);
   rpc UpdateBudgetPerson(UpdateBudgetPersonRequest) returns (UpdateBudgetPersonResponse);
+  rpc UpdateBudgetPersonRole(UpdateBudgetPersonRoleRequest) returns (UpdateBudgetPersonRoleResponse);
   rpc RemoveBudgetPerson(RemoveBudgetPersonRequest) returns (RemoveBudgetPersonResponse);
 
   // Income sources — profile-level templates
@@ -103,6 +104,7 @@ message BudgetPerson {
   string user_name = 3;
   string user_id = 4; // empty when person is not a registered user
   string color = 5;
+  BudgetRole role = 6; // UNSPECIFIED when not linked to a real user
 }
 
 // Template for an income stream. Carries forward every period.
@@ -312,6 +314,16 @@ message UpdateBudgetPersonRequest {
 }
 
 message UpdateBudgetPersonResponse {
+  BudgetPerson person = 1;
+}
+
+message UpdateBudgetPersonRoleRequest {
+  int64 person_id = 1;
+  string budget_profile_id = 2;
+  BudgetRole role = 3;
+}
+
+message UpdateBudgetPersonRoleResponse {
   BudgetPerson person = 1;
 }
 
