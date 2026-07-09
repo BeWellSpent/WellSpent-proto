@@ -17,10 +17,11 @@ buf breaking --against .git#branch=main   # check for breaking changes vs main
 
 | File | Service / types |
 |---|---|
-| `common.proto` | Shared types: `Money`, `RecurringType`, `ExpenseType`, `PaymentType` |
+| `common.proto` | Shared types: `Money`, `RecurringType`, `ExpenseType`, `PaymentType`, `BudgetRole` |
 | `auth.proto` | `AuthService` — Register, Login, Logout, RefreshToken, Google OAuth |
 | `user.proto` | `UserService` — GetMe, UpdateMe, ChangePassword, DeleteMe |
 | `budget.proto` | `BudgetService` — budget CRUD, people, income entries, transactions, categories, payment methods |
+| `invite.proto` | `InviteService` — SendBudgetInvite, ListBudgetInvites, CancelBudgetInvite, GetBudgetInvite, AcceptBudgetInvite |
 
 ## Adding an RPC
 
@@ -39,7 +40,6 @@ buf breaking --against .git#branch=main   # check for breaking changes vs main
 ```bash
 git checkout develop
 git pull origin develop
-git checkout -b feature/<name>
 ```
 
 **Final steps after any proto change:**
@@ -51,15 +51,15 @@ buf lint
 # Stage and commit
 git add spendsense/v1/...
 git commit -m "feat: meaningful description of what changed"
-git push origin feature/<name>
+git push origin develop
 
-# Create PR from feature branch → main and immediately enable auto-merge
-gh pr create --base main --head feature/<name> --title "Short title" --body "Description"
-gh pr merge feature/<name> --auto --merge
+# Create PR from develop → main and immediately enable auto-merge
+gh pr create --base main --head develop --title "Short title" --body "Description"
+gh pr merge develop --auto --merge
 ```
 
-- Always pull `develop` before branching — never start from a stale base
-- Always branch off `develop` with a `feature/<name>` branch; never commit directly to `develop` or `main`
+- Always pull `develop` before starting — never work from a stale base
+- Commit directly to `develop`; never commit directly to `main`
 - `gh pr merge --auto` enables auto-merge — the PR lands and BSR publishing triggers once CI passes
 - Never push directly to `main` — breaking change detection runs in CI on PRs to `main`
 

@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package spendsense.v1;
+
+import "google/protobuf/timestamp.proto";
+import "spendsense/v1/common.proto";
+
+option go_package = "github.com/mauro-afa91/spendsense/gen/spendsense/v1;spendsensev1";
+
+service InviteService {
+  // Send an invite email to a collaborator or viewer. Admin only.
+  rpc SendBudgetInvite(SendBudgetInviteRequest) returns (SendBudgetInviteResponse);
+
+  // List pending and cancelled invites for a budget. Admin only.
+  rpc ListBudgetInvites(ListBudgetInvitesRequest) returns (ListBudgetInvitesResponse);
+
+  // Cancel a pending invite. Admin only.
+  rpc CancelBudgetInvite(CancelBudgetInviteRequest) returns (CancelBudgetInviteResponse);
+
+  // Get invite details by token — public, no JWT required.
+  // Used to show the invite preview page before the user authenticates.
+  rpc GetBudgetInvite(GetBudgetInviteRequest) returns (GetBudgetInviteResponse);
+
+  // Accept an invite using its token. JWT required — the authenticated user
+  // is linked to the budget. If the invitee has no account they must register first.
+  rpc AcceptBudgetInvite(AcceptBudgetInviteRequest) returns (AcceptBudgetInviteResponse);
+}
+
+// ─── Core entity ─────────────────────────────────────────────────────────────
+
+message BudgetInvite {
+  string id = 1;
+  string budget_profile_id = 2;
+  string budget_name = 3;     // denormalized for display on the invite page
+  string inviter_name = 4;    // denormalized for display on the invite page
+  string email = 5;           // recipient email address
+  BudgetRole role = 6;
+  InviteStatus status = 7;
+  google.protobuf.Timestamp expires_at = 8;
+  google.protobuf.Timestamp created_at = 9;
+  int64 budget_person_id = 10; // non-zero when linked to an existing placeholder person
+}
+
+enum InviteStatus {
+  INVITE_STATUS_UNSPECIFIED = 0;
+  INVITE_STATUS_PENDING = 1;
+  INVITE_STATUS_ACCEPTED = 2;
+  INVITE_STATUS_CANCELLED = 3;
+  INVITE_STATUS_EXPIRED = 4;
+}
+
+// ─── RPCs ────────────────────────────────────────────────────────────────────
+
+message SendBudgetInviteRequest {
+  string budget_profile_id = 1;
+  string email = 2;
+  BudgetRole role = 3;
+  int64 budget_person_id = 4; // 0 = create a new BudgetPerson on acceptance
+}
+
+message SendBudgetInviteResponse {
+  BudgetInvite invite = 1;
+}
+
+message ListBudgetInvitesRequest {
+  string budget_profile_id = 1;
+}
+
+message ListBudgetInvitesResponse {
+  repeated BudgetInvite invites = 1;
+}
+
+message CancelBudgetInviteRequest {
+  string id = 1;
+  string budget_profile_id = 2;
+}
+
+message CancelBudgetInviteResponse {}
+
+message GetBudgetInviteRequest {
+  string token = 1;
+}
+
+message GetBudgetInviteResponse {
+  BudgetInvite invite = 1;
+}
+
+message AcceptBudgetInviteRequest {
+  string token = 1;
+}
+
+message AcceptBudgetInviteResponse {
+  string budget_profile_id = 1; // so the frontend can redirect to the budget
+}
