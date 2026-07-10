@@ -179,6 +179,7 @@ message FixedExpense {
   bool is_active = 8;
   int32 interval_months = 9; // 1 = every month (default), 3 = quarterly, 12 = yearly, etc.
   google.protobuf.Timestamp next_due_date = 10; // computed, not persisted
+  optional google.protobuf.Timestamp anchor_date = 11; // explicit interval anchor + day source; overrides created_at/day_of_month when set
 }
 
 message Category {
@@ -641,6 +642,7 @@ message CreateFixedExpenseRequest {
   string payment_method_id = 5; // empty = unset
   int32 day_of_month = 6;
   int32 interval_months = 7; // 1 = every month (default) if unset/zero
+  optional google.protobuf.Timestamp anchor_date = 8; // when set, overrides created_at + day_of_month; immediate spawn becomes conditional on due-check
 }
 
 message CreateFixedExpenseResponse {
@@ -657,6 +659,7 @@ message UpdateFixedExpenseRequest {
   string payment_method_id = 6;
   int32 day_of_month = 7;
   int32 interval_months = 8;
+  optional google.protobuf.Timestamp anchor_date = 9; // when set, overrides created_at + day_of_month for this expense going forward
 }
 
 message UpdateFixedExpenseResponse {
