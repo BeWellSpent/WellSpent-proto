@@ -177,6 +177,8 @@ message FixedExpense {
   string payment_method_id = 6; // empty = unset
   int32 day_of_month = 7; // 1–31; clamped to last day of month when needed
   bool is_active = 8;
+  int32 interval_months = 9; // 1 = every month (default), 3 = quarterly, 12 = yearly, etc.
+  google.protobuf.Timestamp next_due_date = 10; // computed, not persisted
 }
 
 message Category {
@@ -638,6 +640,7 @@ message CreateFixedExpenseRequest {
   int32 category_id = 4; // 0 = unset
   string payment_method_id = 5; // empty = unset
   int32 day_of_month = 6;
+  int32 interval_months = 7; // 1 = every month (default) if unset/zero
 }
 
 message CreateFixedExpenseResponse {
@@ -653,6 +656,7 @@ message UpdateFixedExpenseRequest {
   int32 category_id = 5;
   string payment_method_id = 6;
   int32 day_of_month = 7;
+  int32 interval_months = 8;
 }
 
 message UpdateFixedExpenseResponse {
