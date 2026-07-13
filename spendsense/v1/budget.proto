@@ -78,6 +78,7 @@ service BudgetService {
   rpc ListTransactionReviews(ListTransactionReviewsRequest) returns (ListTransactionReviewsResponse);
   rpc ConfirmTransactionReview(ConfirmTransactionReviewRequest) returns (ConfirmTransactionReviewResponse);
   rpc DismissTransactionReview(DismissTransactionReviewRequest) returns (DismissTransactionReviewResponse);
+  rpc MarkTransactionForReview(MarkTransactionForReviewRequest) returns (MarkTransactionForReviewResponse);
 }
 
 // ─── Core entities ───────────────────────────────────────────────────────────
@@ -704,7 +705,7 @@ message TransactionReview {
 }
 
 message ListTransactionReviewsRequest {
-  string budget_period_id = 1;
+  string budget_profile_id = 1;
 }
 
 message ListTransactionReviewsResponse {
@@ -723,3 +724,13 @@ message DismissTransactionReviewRequest {
 }
 
 message DismissTransactionReviewResponse {}
+
+message MarkTransactionForReviewRequest {
+  string transaction_id = 1;
+  string fixed_expense_id = 2;
+  string budget_profile_id = 3;
+}
+
+message MarkTransactionForReviewResponse {
+  TransactionReview review = 1;
+}
