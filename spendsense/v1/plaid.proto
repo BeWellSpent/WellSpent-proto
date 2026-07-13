@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package spendsense.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/mauro-afa91/spendsense/gen/spendsense/v1;spendsensev1";
+
+service PlaidService {
+  rpc CreateLinkToken(CreateLinkTokenRequest) returns (CreateLinkTokenResponse);
+  rpc ExchangePublicToken(ExchangePublicTokenRequest) returns (ExchangePublicTokenResponse);
+  rpc GetPlaidConnections(GetPlaidConnectionsRequest) returns (GetPlaidConnectionsResponse);
+  rpc DisconnectPlaid(DisconnectPlaidRequest) returns (DisconnectPlaidResponse);
+}
+
+// ─── Shared message ───────────────────────────────────────────────────────────
+
+message PlaidConnection {
+  string id = 1;
+  string institution_id = 2;
+  string institution_name = 3;
+  // active | disconnected | error
+  string status = 4;
+  google.protobuf.Timestamp last_synced_at = 5;
+  string budget_profile_id = 6;
+}
+
+// ─── CreateLinkToken ──────────────────────────────────────────────────────────
+
+message CreateLinkTokenRequest {
+  // Budget profile that imported transactions will be written to.
+  string budget_profile_id = 1;
+}
+
+message CreateLinkTokenResponse {
+  string link_token = 1;
+  // ISO 8601 expiration time of the link token.
+  string expiration = 2;
+}
+
+// ─── ExchangePublicToken ──────────────────────────────────────────────────────
+
+message ExchangePublicTokenRequest {
+  string public_token = 1;
+  string budget_profile_id = 2;
+}
+
+message ExchangePublicTokenResponse {
+  PlaidConnection connection = 1;
+}
+
+// ─── GetPlaidConnections ──────────────────────────────────────────────────────
+
+message GetPlaidConnectionsRequest {
+  // Optional. If set, filters to connections for a specific budget profile.
+  string budget_profile_id = 1;
+}
+
+message GetPlaidConnectionsResponse {
+  repeated PlaidConnection connections = 1;
+}
+
+// ─── DisconnectPlaid ──────────────────────────────────────────────────────────
+
+message DisconnectPlaidRequest {
+  // UUID of the plaid_item row.
+  string connection_id = 1;
+}
+
+message DisconnectPlaidResponse {}
