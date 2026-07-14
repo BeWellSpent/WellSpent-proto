@@ -1,5 +1,5 @@
 version: v2
-name: buf.build/xpendsense/spendsense
+name: buf.build/bewellspent/wellspent
 lint:
   use:
     - STANDARD

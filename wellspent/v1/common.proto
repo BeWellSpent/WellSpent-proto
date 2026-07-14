@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package spendsense.v1;
+package wellspent.v1;
 
-option go_package = "github.com/mauro-afa91/spendsense/gen/spendsense/v1;spendsensev1";
+option go_package = "github.com/BeWellSpent/wellspent-backend/gen/wellspent/v1;wellspentv1";
 
 // Fixed-point money representation to avoid float precision issues.
 // amount = units + nanos / 1_000_000_000

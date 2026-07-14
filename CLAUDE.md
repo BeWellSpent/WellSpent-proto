@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This repo is the single source of truth for the SpendSense API contract. All proto files live under `spendsense/v1/`. Changes pushed to `main` are automatically published to the Buf Schema Registry at `buf.build/xpendsense/spendsense` via CI, which the backend consumes via `make generate`.
+This repo is the single source of truth for the WellSpent API contract. All proto files live under `wellspent/v1/`. Changes pushed to `main` are automatically published to the Buf Schema Registry at `buf.build/bewellspent/wellspent` via CI, which the backend consumes via `make generate`.
 
 ## Commands
 
@@ -49,7 +49,7 @@ git pull origin develop
 buf lint
 
 # Stage and commit
-git add spendsense/v1/...
+git add wellspent/v1/...
 git commit -m "feat: meaningful description of what changed"
 git push origin develop
 
@@ -71,5 +71,5 @@ CI uses `buf breaking` with `FILE` rules. Renaming fields, changing field number
 
 All proto files use:
 ```protobuf
-option go_package = "github.com/mauro-afa91/spendsense/gen/spendsense/v1;spendsensev1";
+option go_package = "github.com/BeWellSpent/wellspent-backend/gen/wellspent/v1;wellspentv1";
 ```
