@@ -34,5 +34,5 @@ jobs:
           format: false
           breaking: false
           # breaking check disabled for intentional architectural rework
-          # restore to: breaking: true / breaking_against: buf.build/xpendsense/spendsense
+          # restore to: breaking: true / breaking_against: buf.build/bewellspent/wellspent
           push: true
