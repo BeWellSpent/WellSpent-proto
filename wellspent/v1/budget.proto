@@ -189,6 +189,8 @@ message FixedExpense {
   FrequencyUnit frequency_unit = 12; // UNSPECIFIED/MONTH = today's month-based behavior (default); WEEK = interval_weeks + day_of_week apply instead
   int32 interval_weeks = 13; // 1 = every week; applies when frequency_unit = WEEK
   int32 day_of_week = 14; // 1 = Monday ... 7 = Sunday (ISO 8601); applies when frequency_unit = WEEK
+  optional google.protobuf.Timestamp end_date = 15; // when set, the expense auto-deactivates after this date; the period containing this date is the last to spawn
+  int32 total_payments = 16; // total number of payments in the plan; 0 = unset; informational only — end_date is the authoritative stop condition
 }
 
 message Category {
@@ -655,6 +657,8 @@ message CreateFixedExpenseRequest {
   FrequencyUnit frequency_unit = 9; // UNSPECIFIED/MONTH (default) or WEEK
   int32 interval_weeks = 10; // applies when frequency_unit = WEEK
   int32 day_of_week = 11; // 1 = Monday ... 7 = Sunday; applies when frequency_unit = WEEK
+  optional google.protobuf.Timestamp end_date = 12; // payment plan end date; the period containing this date is the last to spawn
+  int32 total_payments = 13; // total number of payments; 0 = unset; informational — end_date is authoritative
 }
 
 message CreateFixedExpenseResponse {
@@ -675,6 +679,8 @@ message UpdateFixedExpenseRequest {
   FrequencyUnit frequency_unit = 10; // UNSPECIFIED/MONTH (default) or WEEK
   int32 interval_weeks = 11; // applies when frequency_unit = WEEK
   int32 day_of_week = 12; // 1 = Monday ... 7 = Sunday; applies when frequency_unit = WEEK
+  optional google.protobuf.Timestamp end_date = 13; // payment plan end date; null = clear it (expense becomes indefinite again)
+  int32 total_payments = 14; // total number of payments; 0 = clear it
 }
 
 message UpdateFixedExpenseResponse {
