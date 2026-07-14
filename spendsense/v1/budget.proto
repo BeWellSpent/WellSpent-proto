@@ -694,14 +694,21 @@ message TransactionReview {
   string id = 1;
   string budget_period_id = 2;
   string transaction_id = 3;
-  string fixed_expense_id = 4;
+  string fixed_expense_id = 4; // deprecated — superseded by matched_transaction_id, no longer populated
   double match_score = 5;
   string status = 6; // pending, confirmed, dismissed
   // Denormalized display fields
   string transaction_name = 7;
   Money transaction_amount = 8;
-  string fixed_expense_name = 9;
+  string fixed_expense_name = 9; // deprecated — superseded by matched_transaction_name, no longer populated
   google.protobuf.Timestamp created_at = 10;
+  // The specific period transaction this review matches against — a Fixed-type
+  // transaction, whether spawned from a FixedExpense template or a
+  // SavingsSource. Referencing the transaction directly (rather than a
+  // FixedExpense template) lets any Fixed-type transaction be a match target,
+  // savings included, with no separate savings-specific matching path.
+  string matched_transaction_id = 11;
+  string matched_transaction_name = 12;
 }
 
 message ListTransactionReviewsRequest {
@@ -727,8 +734,9 @@ message DismissTransactionReviewResponse {}
 
 message MarkTransactionForReviewRequest {
   string transaction_id = 1;
-  string fixed_expense_id = 2;
+  string fixed_expense_id = 2; // deprecated — superseded by matched_transaction_id, no longer read
   string budget_profile_id = 3;
+  string matched_transaction_id = 4; // the Fixed-type transaction (fixed-expense- or savings-derived) this one duplicates
 }
 
 message MarkTransactionForReviewResponse {
