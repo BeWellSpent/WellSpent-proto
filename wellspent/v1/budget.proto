@@ -207,6 +207,7 @@ message PaymentMethod {
   PaymentType type = 3;
   int64 budget_person_id = 4; // 0 = unattributed
   string color = 5;
+  string alias = 6; // user-defined display name; overrides name in the UI when set
 }
 
 // A per-person planned spending amount for a category. Profile-scoped; carries forward across periods.
@@ -592,6 +593,7 @@ message UpdatePaymentMethodRequest {
   string id = 1;
   string name = 2;
   string color = 3;
+  string alias = 4; // optional; empty string clears the alias
 }
 
 message UpdatePaymentMethodResponse {
