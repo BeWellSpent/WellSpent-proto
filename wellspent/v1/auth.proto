@@ -11,6 +11,10 @@ service AuthService {
   rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
   rpc GetGoogleAuthURL(GetGoogleAuthURLRequest) returns (GetGoogleAuthURLResponse);
   rpc ExchangeGoogleCode(ExchangeGoogleCodeRequest) returns (ExchangeGoogleCodeResponse);
+  // Public — no auth required (driven by a token from the verification email link).
+  rpc VerifyEmail(VerifyEmailRequest) returns (VerifyEmailResponse);
+  // Public — no auth required (used from the login/registration flow before the user has a session).
+  rpc ResendVerificationEmail(ResendVerificationEmailRequest) returns (ResendVerificationEmailResponse);
 }
 
 message RegisterRequest {
@@ -81,3 +85,17 @@ message ExchangeGoogleCodeResponse {
   string language = 4; // user's stored locale (new user: from request; returning user: from profile)
   string currency = 5; // user's stored currency (new user: from request; returning user: from profile)
 }
+
+message VerifyEmailRequest {
+  string token = 1;
+}
+
+message VerifyEmailResponse {
+  bool success = 1;
+}
+
+message ResendVerificationEmailRequest {
+  string email = 1;
+}
+
+message ResendVerificationEmailResponse {}
