@@ -98,3 +98,11 @@ enum FrequencyUnit {
   FREQUENCY_UNIT_MONTH = 1; // interval_months + day_of_month apply
   FREQUENCY_UNIT_WEEK = 2; // interval_weeks + day_of_week apply
 }
+
+// Subscription plan tier for a user account.
+enum AccountPlan {
+  ACCOUNT_PLAN_UNSPECIFIED = 0;
+  ACCOUNT_PLAN_FREE = 1;
+  ACCOUNT_PLAN_PRO = 2;
+  ACCOUNT_PLAN_LIFETIME = 3;
+}

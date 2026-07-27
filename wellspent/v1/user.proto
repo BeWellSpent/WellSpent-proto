@@ -30,6 +30,7 @@ message User {
   TaxPaymentFrequency tax_payment_frequency = 11;
   string language = 12; // BCP 47 locale code, e.g. "en", "es"
   string currency = 13; // ISO 4217 currency code, e.g. "USD", "ARS", "EUR"
+  AccountPlan plan = 14;
 }
 
 message GetMeRequest {}
