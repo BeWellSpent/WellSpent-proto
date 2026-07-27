@@ -1,0 +1,112 @@
+syntax = "proto3";
+
+package wellspent.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/BeWellSpent/wellspent-backend/gen/wellspent/v1;wellspentv1";
+
+service NotificationService {
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc MarkNotificationsRead(MarkNotificationsReadRequest) returns (MarkNotificationsReadResponse);
+  rpc GetUnreadCount(GetUnreadCountRequest) returns (GetUnreadCountResponse);
+  rpc ListAlertSubscriptions(ListAlertSubscriptionsRequest) returns (ListAlertSubscriptionsResponse);
+  rpc UpsertAlertSubscription(UpsertAlertSubscriptionRequest) returns (UpsertAlertSubscriptionResponse);
+  rpc DeleteAlertSubscription(DeleteAlertSubscriptionRequest) returns (DeleteAlertSubscriptionResponse);
+}
+
+// ─── In-app notifications ─────────────────────────────────────────────────────
+
+message Notification {
+  string id = 1;
+  string user_id = 2;
+  string budget_profile_id = 3;
+  // alert_type matches AlertSubscription.alert_type values
+  string alert_type = 4;
+  string title = 5;
+  string body = 6;
+  bool is_read = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message ListNotificationsRequest {
+  // Optional — filter to a specific budget. Empty returns all for the user.
+  string budget_profile_id = 1;
+  // Max number of notifications to return (default 50).
+  int32 limit = 2;
+}
+
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
+  int32 unread_count = 2;
+}
+
+message MarkNotificationsReadRequest {
+  // IDs to mark as read. Empty marks ALL unread notifications as read.
+  repeated string ids = 1;
+}
+
+message MarkNotificationsReadResponse {}
+
+message GetUnreadCountRequest {}
+
+message GetUnreadCountResponse {
+  int32 count = 1;
+}
+
+// ─── Alert subscriptions ──────────────────────────────────────────────────────
+
+// AlertSubscription defines when and how a user is notified about budget events.
+//
+// alert_type values:
+//   "spending_threshold" — fires when spending crosses threshold_pct% of the plan
+//   "new_transaction"    — fires when another member adds a transaction
+//   "review_pending"     — fires when a Plaid import is queued for review
+//   "period_created"     — fires when a new budget period starts
+//
+// channel values: "email", "in_app", "both"
+// threshold_scope values: "budget" (total), "category" (per category_id)
+message AlertSubscription {
+  string id = 1;
+  string user_id = 2;
+  string budget_profile_id = 3;
+  string alert_type = 4;
+  string channel = 5;
+  // 0–100; only meaningful when alert_type = "spending_threshold"
+  float threshold_pct = 6;
+  // "budget" or "category"; only for spending_threshold
+  string threshold_scope = 7;
+  // Only set when threshold_scope = "category"
+  int32 category_id = 8;
+  // When true, the notification is fanned out to all active budget members
+  bool notify_all_members = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message ListAlertSubscriptionsRequest {
+  string budget_profile_id = 1;
+}
+
+message ListAlertSubscriptionsResponse {
+  repeated AlertSubscription subscriptions = 1;
+}
+
+message UpsertAlertSubscriptionRequest {
+  string budget_profile_id = 1;
+  string alert_type = 2;
+  string channel = 3;
+  float threshold_pct = 4;
+  string threshold_scope = 5;
+  int32 category_id = 6;
+  bool notify_all_members = 7;
+}
+
+message UpsertAlertSubscriptionResponse {
+  AlertSubscription subscription = 1;
+}
+
+message DeleteAlertSubscriptionRequest {
+  string id = 1;
+}
+
+message DeleteAlertSubscriptionResponse {}
