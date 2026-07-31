@@ -13,6 +13,11 @@ service NotificationService {
   rpc ListAlertSubscriptions(ListAlertSubscriptionsRequest) returns (ListAlertSubscriptionsResponse);
   rpc UpsertAlertSubscription(UpsertAlertSubscriptionRequest) returns (UpsertAlertSubscriptionResponse);
   rpc DeleteAlertSubscription(DeleteAlertSubscriptionRequest) returns (DeleteAlertSubscriptionResponse);
+
+  // Registers an APNs device token for the authenticated user, so in-app
+  // notifications can also be delivered as a push. Upserts by token — the
+  // same physical device re-registering just updates its owner.
+  rpc RegisterDeviceToken(RegisterDeviceTokenRequest) returns (RegisterDeviceTokenResponse);
 }
 
 // ─── In-app notifications ─────────────────────────────────────────────────────
@@ -110,3 +115,12 @@ message DeleteAlertSubscriptionRequest {
 }
 
 message DeleteAlertSubscriptionResponse {}
+
+// ─── Push device registration ─────────────────────────────────────────────────
+
+message RegisterDeviceTokenRequest {
+  string token = 1;
+  string platform = 2; // "ios"
+}
+
+message RegisterDeviceTokenResponse {}
