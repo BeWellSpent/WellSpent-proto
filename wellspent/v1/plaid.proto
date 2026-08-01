@@ -38,6 +38,12 @@ message CreateLinkTokenRequest {
   // selection enabled for this existing connection (add/remove accounts on
   // an already-connected item) instead of a fresh connect flow.
   string connection_id = 2;
+  // Optional. Must be a Plaid-dashboard-registered redirect URI. Only
+  // needed by native clients (e.g. iOS) so OAuth-based institutions can
+  // hand control back to the app; web's Link flow doesn't need one since
+  // OAuth stays within the same browser tab. Omit to preserve existing
+  // (non-OAuth-redirect) behavior.
+  string redirect_uri = 3;
 }
 
 message CreateLinkTokenResponse {
