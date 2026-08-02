@@ -172,6 +172,7 @@ message Transaction {
   google.protobuf.Timestamp paid_at = 14;
   string fixed_expense_id = 15; // set when spawned from a FixedExpense template
   bool is_excluded = 16; // excluded from totals without being deleted (e.g. non-spending transfers)
+  bool is_plaid_imported = 17; // true when this transaction originated from a Plaid sync (the raw plaid_transaction_id is backend-internal only, used solely for dedup); clients use this to restrict edits to category-only
 }
 
 // Profile-level template for a recurring fixed expense.
