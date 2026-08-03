@@ -33,7 +33,7 @@ buf breaking --against .git#branch=main   # check for breaking changes vs main
 
 ## Git workflow
 
-`main` is production. Never commit or push directly to `main`. Pushing to `main` triggers BSR publishing — always go through a PR.
+`main` is production. Never commit or push directly to `main`. Pushing to `main` triggers BSR publishing — always go through a PR. Never add a `Co-Authored-By: Claude` (or any AI attribution) trailer to commit messages — standing rule across the whole workspace.
 
 **Before starting any work:**
 
