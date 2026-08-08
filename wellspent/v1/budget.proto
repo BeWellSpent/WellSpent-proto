@@ -80,6 +80,11 @@ service BudgetService {
   rpc ConfirmTransactionReview(ConfirmTransactionReviewRequest) returns (ConfirmTransactionReviewResponse);
   rpc DismissTransactionReview(DismissTransactionReviewRequest) returns (DismissTransactionReviewResponse);
   rpc MarkTransactionForReview(MarkTransactionForReviewRequest) returns (MarkTransactionForReviewResponse);
+
+  // Expense summary — server-computed planned/actual/remainder totals for the
+  // Expense Plan and Expense Overview tabs, so clients render instead of
+  // recompute (see docs/features/expense-summary.md).
+  rpc GetExpenseSummary(GetExpenseSummaryRequest) returns (GetExpenseSummaryResponse);
 }
 
 // ─── Core entities ───────────────────────────────────────────────────────────
@@ -762,4 +767,53 @@ message MarkTransactionForReviewRequest {
 
 message MarkTransactionForReviewResponse {
   TransactionReview review = 1;
+}
+
+// ─── Expense summary ──────────────────────────────────────────────────────────
+
+// Per-category planned/actual totals, server-computed. planned_total mirrors
+// the existing per-category planned formula (allocations, falling back to
+// fixed-expense planned amounts when there is no allocation; savings sources
+// for the Savings category). actual_total and is_over are populated on
+// overview_categories only — plan_categories are planned-side only, matching
+// the Expense Plan tab which never shows actuals.
+message CategoryExpenseSummary {
+  int32 category_id = 1;
+  Money planned_total = 2;
+  Money actual_total = 3; // zero/unset on plan_categories
+  bool is_over = 4; // actual_total > planned_total; false on plan_categories
+  repeated PersonExpenseSummary person_breakdowns = 5;
+}
+
+message PersonExpenseSummary {
+  int64 budget_person_id = 1;
+  Money planned_total = 2;
+  Money actual_total = 3;
+}
+
+message GetExpenseSummaryRequest {
+  string budget_period_id = 1;
+}
+
+message GetExpenseSummaryResponse {
+  // Income
+  Money income_from_sources = 1; // sum of IncomeSource.default_amount, profile-wide — Expense Plan tab's income
+  Money income_from_entries = 2; // sum of IncomeEntry.amount for this period — Expense Overview tab's income
+
+  // Totals
+  Money total_committed = 3; // sum of planned_total over plan_categories — Expense Plan tab's "committed"
+  Money total_planned = 4; // sum of planned_total over overview_categories — Expense Overview tab's "planned"
+  Money total_actual = 5;
+  Money uncategorized_actual = 6;
+  Money total_over_budget = 7;
+  Money total_unplanned = 8; // uncategorized_actual + actual spend in categories with no plan
+
+  // Remainders
+  Money remainder_plan = 9; // income_from_sources - total_committed
+  Money remainder_actual = 10; // income_from_entries - total_actual
+  Money remainder_planned = 11; // income_from_entries - total_planned
+
+  // Per-category breakdowns
+  repeated CategoryExpenseSummary plan_categories = 12; // categories with a plan; sorted by planned_total descending
+  repeated CategoryExpenseSummary overview_categories = 13; // categories with a plan OR actual spend; sorted by actual_total descending
 }
