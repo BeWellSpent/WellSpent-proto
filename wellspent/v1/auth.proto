@@ -11,6 +11,10 @@ service AuthService {
   rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
   rpc GetGoogleAuthURL(GetGoogleAuthURLRequest) returns (GetGoogleAuthURLResponse);
   rpc ExchangeGoogleCode(ExchangeGoogleCodeRequest) returns (ExchangeGoogleCodeResponse);
+  // Public — no auth required. Native Sign in with Apple: the client already
+  // holds a signed identity token from Apple, so there is no server-issued
+  // auth URL and no browser redirect to exchange (unlike the Google pair above).
+  rpc SignInWithApple(SignInWithAppleRequest) returns (SignInWithAppleResponse);
   // Public — no auth required (driven by a token from the verification email link).
   rpc VerifyEmail(VerifyEmailRequest) returns (VerifyEmailResponse);
   // Public — no auth required (used from the login/registration flow before the user has a session).
@@ -79,6 +83,23 @@ message ExchangeGoogleCodeRequest {
 }
 
 message ExchangeGoogleCodeResponse {
+  string access_token = 1;
+  int64 expires_in = 2;
+  bool is_new_user = 3;
+  string language = 4; // user's stored locale (new user: from request; returning user: from profile)
+  string currency = 5; // user's stored currency (new user: from request; returning user: from profile)
+}
+
+message SignInWithAppleRequest {
+  string identity_token = 1; // Apple id_token (RS256 JWT) from ASAuthorizationAppleIDCredential — verified server-side against Apple's JWKS
+  string authorization_code = 2; // one-time code, exchanged server-side for a refresh token so the account can be revoked on deletion
+  string first_name = 3; // Apple supplies the name ONLY on the very first authorization, never again — persisted on first link
+  string last_name = 4;
+  string language = 5; // used for new users only — defaults to "en"
+  string currency = 6; // used for new users only — defaults to "USD"
+}
+
+message SignInWithAppleResponse {
   string access_token = 1;
   int64 expires_in = 2;
   bool is_new_user = 3;
