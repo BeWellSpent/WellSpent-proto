@@ -11,6 +11,7 @@ service UserService {
   rpc GetMe(GetMeRequest) returns (GetMeResponse);
   rpc UpdateMe(UpdateMeRequest) returns (UpdateMeResponse);
   rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
+  rpc ChangeEmail(ChangeEmailRequest) returns (ChangeEmailResponse);
   rpc DeleteMe(DeleteMeRequest) returns (DeleteMeResponse);
   // Public — no auth required (used during registration).
   rpc ListCountries(ListCountriesRequest) returns (ListCountriesResponse);
@@ -66,6 +67,19 @@ message ChangePasswordRequest {
 }
 
 message ChangePasswordResponse {}
+
+// Replaces the account's address and resets verification, so the new address
+// has to be confirmed before the account is usable again. Exists chiefly as
+// the escape hatch for an address mistyped at registration — resending to a
+// wrong address can never work.
+message ChangeEmailRequest {
+  string new_email = 1;
+}
+
+message ChangeEmailResponse {
+  // The updated user, with is_verified now false.
+  User user = 1;
+}
 
 message DeleteMeRequest {}
 
