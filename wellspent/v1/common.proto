@@ -106,3 +106,13 @@ enum AccountPlan {
   ACCOUNT_PLAN_PRO = 2;
   ACCOUNT_PLAN_LIFETIME = 3;
 }
+
+// How loudly a status banner announces itself. Ordered by increasing urgency —
+// clients rely on the numeric order to pick a winner when more than one banner
+// is live, so new values must keep that ordering meaningful.
+enum StatusBannerSeverity {
+  STATUS_BANNER_SEVERITY_UNSPECIFIED = 0;
+  STATUS_BANNER_SEVERITY_INFO = 1; // green — everything is fine, just letting you know
+  STATUS_BANNER_SEVERITY_WARNING = 2; // yellow — degraded, but the app works
+  STATUS_BANNER_SEVERITY_CRITICAL = 3; // red — something is badly broken
+}

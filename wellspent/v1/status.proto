@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package wellspent.v1;
+
+import "google/protobuf/timestamp.proto";
+import "wellspent/v1/common.proto";
+
+option go_package = "github.com/BeWellSpent/wellspent-backend/gen/wellspent/v1;wellspentv1";
+
+// StatusBanner is an operator-authored message shown at the very top of every
+// client — outages, maintenance windows, "the iOS build is broken, update".
+//
+// Deliberately separate from NotificationService: a notification is addressed
+// to one user about their own budget and is read once, whereas a banner is
+// global, unauthenticated, and true for everyone until it expires.
+service StatusService {
+  // Public — no auth. A signed-out visitor staring at a broken login screen is
+  // one of the people who most needs to see this, so it must not require a
+  // token.
+  rpc GetActiveStatusBanner(GetActiveStatusBannerRequest) returns (GetActiveStatusBannerResponse);
+
+  // The three below are superuser-only. There is no admin UI: these are called
+  // directly (curl/grpcurl) during an incident.
+  rpc CreateStatusBanner(CreateStatusBannerRequest) returns (CreateStatusBannerResponse);
+  rpc ListStatusBanners(ListStatusBannersRequest) returns (ListStatusBannersResponse);
+  // Takes a banner down ahead of its scheduled end by moving ends_at to now.
+  // Rows are never deleted — what was announced, and when, is worth keeping.
+  rpc ExpireStatusBanner(ExpireStatusBannerRequest) returns (ExpireStatusBannerResponse);
+}
+
+message StatusBanner {
+  string id = 1;
+  StatusBannerSeverity severity = 2;
+
+  // Both languages are stored on the row rather than one string being
+  // translated at read time: an operator writing an incident notice knows what
+  // they mean, and machine-translating an outage message at the moment it
+  // matters is not a risk worth taking. Clients pick by the user's locale and
+  // fall back to English when the Spanish text is empty.
+  //
+  // Capped at 300 characters each. Clients show one line and offer a
+  // "learn more" toggle that expands the rest in place.
+  string message_en = 3;
+  string message_es = 4;
+
+  // Active window. A banner is live when starts_at <= now < ends_at, which is
+  // the issue's "time factor" — banners expire on their own rather than
+  // relying on someone remembering to take them down.
+  google.protobuf.Timestamp starts_at = 5;
+  google.protobuf.Timestamp ends_at = 6;
+
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message GetActiveStatusBannerRequest {}
+
+message GetActiveStatusBannerResponse {
+  // Unset when nothing is live. At most one banner is ever returned — the
+  // highest severity currently active, then the most recently created. The top
+  // of the screen is one strip; stacking banners would push the app itself off
+  // a phone screen.
+  StatusBanner banner = 1;
+}
+
+message CreateStatusBannerRequest {
+  StatusBannerSeverity severity = 1;
+  string message_en = 2;
+  // Optional. Falls back to the English text on clients when empty.
+  string message_es = 3;
+  // Optional — defaults to now, so the common case of "announce this
+  // immediately" needs no timestamp arithmetic under pressure.
+  google.protobuf.Timestamp starts_at = 4;
+  // Required, and must be after starts_at.
+  google.protobuf.Timestamp ends_at = 5;
+}
+
+message CreateStatusBannerResponse {
+  StatusBanner banner = 1;
+}
+
+message ListStatusBannersRequest {
+  // Max rows to return, newest first (default 50). Includes expired banners —
+  // this is the operator's history, not the client-facing view.
+  int32 limit = 1;
+}
+
+message ListStatusBannersResponse {
+  repeated StatusBanner banners = 1;
+}
+
+message ExpireStatusBannerRequest {
+  string id = 1;
+}
+
+message ExpireStatusBannerResponse {
+  StatusBanner banner = 1;
+}
