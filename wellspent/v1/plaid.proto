@@ -15,6 +15,9 @@ service PlaidService {
   // Link "update mode" session (e.g. account selection) completes, since
   // update mode doesn't return a public_token to exchange.
   rpc RefreshPlaidAccounts(RefreshPlaidAccountsRequest) returns (RefreshPlaidAccountsResponse);
+  // Clears a connection's sync cursor so the next sync replays the item's
+  // full transaction history, then starts that sync immediately.
+  rpc ResyncPlaidConnection(ResyncPlaidConnectionRequest) returns (ResyncPlaidConnectionResponse);
 }
 
 // ─── Shared message ───────────────────────────────────────────────────────────
@@ -27,6 +30,22 @@ message PlaidConnection {
   string status = 4;
   google.protobuf.Timestamp last_synced_at = 5;
   string budget_profile_id = 6;
+  // Display name of the budget member who linked this connection. Populated
+  // when listing a budget's connections, where several members' banks appear
+  // side by side and the status is meaningless without knowing whose it is.
+  string owner_name = 7;
+  // True when the caller linked this connection. Only the owner may
+  // disconnect it, manage its accounts, or resync it — everyone else on the
+  // budget sees it read-only.
+  bool is_owner = 8;
+  // False when the sync job skips this connection on every run because its
+  // owner isn't on a paid plan. Distinct from `status`, which reports the
+  // health of the link itself: an unentitled connection is perfectly healthy
+  // and still imports nothing.
+  bool sync_enabled = 9;
+  // When the owner may next request a manual resync. Unset when one is
+  // allowed right now.
+  google.protobuf.Timestamp resync_available_at = 10;
 }
 
 // ─── CreateLinkToken ──────────────────────────────────────────────────────────
@@ -116,5 +135,16 @@ message RefreshPlaidAccountsRequest {
 }
 
 message RefreshPlaidAccountsResponse {
+  PlaidConnection connection = 1;
+}
+
+// ─── ResyncPlaidConnection ────────────────────────────────────────────────────
+
+message ResyncPlaidConnectionRequest {
+  // UUID of the plaid_item row. The caller must own it.
+  string connection_id = 1;
+}
+
+message ResyncPlaidConnectionResponse {
   PlaidConnection connection = 1;
 }
