@@ -72,6 +72,31 @@ message GetPlaidConnectionsRequest {
 
 message GetPlaidConnectionsResponse {
   repeated PlaidConnection connections = 1;
+  // Budgets the caller belongs to that have connections which will never
+  // sync, because the member who linked them isn't on a paid plan. Empty
+  // when nothing is affected.
+  repeated BudgetSyncWarning warnings = 2;
+}
+
+// BudgetSyncWarning reports that some connections on a shared budget are
+// being skipped by the sync job.
+//
+// Plaid sync is entitled per connection owner, not per budget, so a free-tier
+// member of a paid budget can link a bank that is then silently never synced.
+// This is deliberately an aggregate rather than the affected connections
+// themselves: other members have no business seeing which institutions
+// someone banks with, and nothing here is actionable by anyone but the
+// member who owns them.
+message BudgetSyncWarning {
+  string budget_profile_id = 1;
+  string budget_name = 2;
+  // Display name of the member whose connections are being skipped.
+  string member_name = 3;
+  // How many of that member's connections are affected.
+  int32 connection_count = 4;
+  // True when the member is the caller, so clients can say "your bank"
+  // rather than naming them, and offer an upgrade path.
+  bool is_current_user = 5;
 }
 
 // ─── DisconnectPlaid ──────────────────────────────────────────────────────────
