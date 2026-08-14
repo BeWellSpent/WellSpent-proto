@@ -25,6 +25,7 @@ service BudgetService {
   rpc ListBudgetPeople(ListBudgetPeopleRequest) returns (ListBudgetPeopleResponse);
   rpc UpdateBudgetPerson(UpdateBudgetPersonRequest) returns (UpdateBudgetPersonResponse);
   rpc UpdateBudgetPersonRole(UpdateBudgetPersonRoleRequest) returns (UpdateBudgetPersonRoleResponse);
+  rpc UpdateMyBudgetPreferences(UpdateMyBudgetPreferencesRequest) returns (UpdateMyBudgetPreferencesResponse);
   rpc RemoveBudgetPerson(RemoveBudgetPersonRequest) returns (RemoveBudgetPersonResponse);
 
   // Income sources — profile-level templates
@@ -117,6 +118,11 @@ message BudgetPerson {
   string user_id = 4; // empty when person is not a registered user
   string color = 5;
   BudgetRole role = 6; // UNSPECIFIED when not linked to a real user
+  // This person's own chart preferences for this budget. Carried on
+  // ListBudgetPeople, which every budget screen already fetches, so reading
+  // them costs no extra round trip. UNSPECIFIED = use the client default.
+  ChartType plan_chart_type = 7;
+  ChartType overview_chart_type = 8;
 }
 
 // Template for an income stream. Carries forward every period.
@@ -347,6 +353,20 @@ message UpdateBudgetPersonRoleRequest {
 }
 
 message UpdateBudgetPersonRoleResponse {
+  BudgetPerson person = 1;
+}
+
+// Updates the *caller's own* preferences on a budget. Deliberately carries no
+// person_id: the person row is resolved from the JWT, so there is no request
+// shape that could write another member's settings. Allowed for every role,
+// Viewer included — this is presentation, not budget data.
+message UpdateMyBudgetPreferencesRequest {
+  string budget_profile_id = 1;
+  ChartType plan_chart_type = 2;
+  ChartType overview_chart_type = 3;
+}
+
+message UpdateMyBudgetPreferencesResponse {
   BudgetPerson person = 1;
 }
 

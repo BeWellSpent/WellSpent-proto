@@ -99,6 +99,15 @@ enum FrequencyUnit {
   FREQUENCY_UNIT_WEEK = 2; // interval_weeks + day_of_week apply
 }
 
+// How a person prefers the expense charts drawn. UNSPECIFIED means the client
+// picks — it is the value every existing member carries, so nobody's view
+// changes until they choose one.
+enum ChartType {
+  CHART_TYPE_UNSPECIFIED = 0;
+  CHART_TYPE_PIE = 1;
+  CHART_TYPE_BAR = 2;
+}
+
 // Subscription plan tier for a user account.
 enum AccountPlan {
   ACCOUNT_PLAN_UNSPECIFIED = 0;
