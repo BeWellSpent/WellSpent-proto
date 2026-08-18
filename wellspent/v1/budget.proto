@@ -59,6 +59,11 @@ service BudgetService {
   // Deliberately permitted on an archived period — see docs/features/installment-plans.md.
   rpc CreateInstallmentPlan(CreateInstallmentPlanRequest) returns (CreateInstallmentPlanResponse);
 
+  // Reverses CreateInstallmentPlan: deletes the plan and every payment it
+  // spawned, then un-excludes and unlinks the original purchase. Refused once
+  // any payment has been marked paid — that is real recorded spend.
+  rpc DeleteInstallmentPlan(DeleteInstallmentPlanRequest) returns (DeleteInstallmentPlanResponse);
+
   // Categories — user-scoped, unchanged
   rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse);
   rpc CreateCategory(CreateCategoryRequest) returns (CreateCategoryResponse);
@@ -179,7 +184,13 @@ message Transaction {
   Money planned_amount = 4;
   google.protobuf.Timestamp date = 5;
   google.protobuf.Timestamp renewal_date = 6; // when a recurring fixed tx expires
-  bool recurring = 7;
+  // DEPRECATED and no longer persisted. The transaction-level recurring flag
+  // predates the fixed_expense template table (backend migration 000021),
+  // which is what actually carries a recurring expense across periods. No
+  // query filtered on it and no service branched on it; the column was
+  // dropped in migration 000051. Kept on the wire because removing a field
+  // is a breaking change — always false.
+  bool recurring = 7 [deprecated = true];
   string budget_period_id = 8;
   int32 category_id = 9;
   string payment_method_id = 10;
@@ -517,7 +528,13 @@ message CreateTransactionRequest {
   Money planned_amount = 3;
   google.protobuf.Timestamp date = 4;
   google.protobuf.Timestamp renewal_date = 5;
-  bool recurring = 6;
+  // DEPRECATED and no longer persisted. The transaction-level recurring flag
+  // predates the fixed_expense template table (backend migration 000021),
+  // which is what actually carries a recurring expense across periods. No
+  // query filtered on it and no service branched on it; the column was
+  // dropped in migration 000051. Kept on the wire because removing a field
+  // is a breaking change — always false.
+  bool recurring = 6 [deprecated = true];
   string budget_period_id = 7;
   int32 category_id = 8;
   string payment_method_id = 9;
@@ -535,7 +552,13 @@ message UpdateTransactionRequest {
   Money amount = 3;
   Money planned_amount = 4;
   google.protobuf.Timestamp date = 5;
-  bool recurring = 6;
+  // DEPRECATED and no longer persisted. The transaction-level recurring flag
+  // predates the fixed_expense template table (backend migration 000021),
+  // which is what actually carries a recurring expense across periods. No
+  // query filtered on it and no service branched on it; the column was
+  // dropped in migration 000051. Kept on the wire because removing a field
+  // is a breaking change — always false.
+  bool recurring = 6 [deprecated = true];
   int32 category_id = 7;
   string payment_method_id = 8;
   int32 transaction_frequency_id = 9;
@@ -599,6 +622,15 @@ message CreateInstallmentPlanRequest {
 message CreateInstallmentPlanResponse {
   FixedExpense fixed_expense = 1;
   Transaction transaction = 2; // the source transaction, now excluded and linked
+}
+
+message DeleteInstallmentPlanRequest {
+  string transaction_id = 1;
+  string budget_period_id = 2;
+}
+
+message DeleteInstallmentPlanResponse {
+  Transaction transaction = 1; // the source transaction, counting again
 }
 
 // ─── Categories ──────────────────────────────────────────────────────────────
