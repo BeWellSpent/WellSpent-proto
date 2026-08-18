@@ -793,16 +793,28 @@ message MarkTransactionForReviewResponse {
 
 // Per-category planned/actual totals, server-computed. planned_total mirrors
 // the existing per-category planned formula (allocations, falling back to
-// fixed-expense planned amounts when there is no allocation; savings sources
-// for the Savings category). actual_total and is_over are populated on
-// overview_categories only — plan_categories are planned-side only, matching
-// the Expense Plan tab which never shows actuals.
+// fixed-expense planned amounts due this period when there is no allocation;
+// savings sources for the Savings category). actual_total and is_over are
+// populated on overview_categories only — plan_categories are planned-side
+// only, matching the Expense Plan tab which never shows actuals.
 message CategoryExpenseSummary {
   int32 category_id = 1;
   Money planned_total = 2;
   Money actual_total = 3; // zero/unset on plan_categories
   bool is_over = 4; // actual_total > planned_total; false on plan_categories
   repeated PersonExpenseSummary person_breakdowns = 5;
+
+  // Fixed expenses templated for this category but NOT due in this period.
+  // Informational only: deliberately excluded from planned_total and from
+  // every aggregate above, because an obligation that isn't due yet isn't
+  // owed against this period. Clients render it as a muted "not due" caption
+  // so the category doesn't silently vanish between due periods — set on
+  // plan_categories only.
+  Money not_due_planned_total = 6;
+
+  // Earliest next due date across the templates behind
+  // not_due_planned_total. Unset when that amount is unset.
+  google.protobuf.Timestamp next_due_date = 7;
 }
 
 message PersonExpenseSummary {
@@ -821,6 +833,11 @@ message GetExpenseSummaryResponse {
   Money income_from_entries = 2; // sum of IncomeEntry.amount for this period — Expense Overview tab's income
 
   // Totals
+  // Neither total counts a fixed expense that isn't due this period — see
+  // CategoryExpenseSummary.not_due_planned_total. Both are now exactly the
+  // sum of their list's planned_total; total_planned used to include the
+  // not-due amount while total_committed did not, so the Overview total
+  // disagreed with the Plan total and neither matched its own rows.
   Money total_committed = 3; // sum of planned_total over plan_categories — Expense Plan tab's "committed"
   Money total_planned = 4; // sum of planned_total over overview_categories — Expense Overview tab's "planned"
   Money total_actual = 5;
