@@ -53,6 +53,12 @@ service BudgetService {
   rpc UnmarkTransactionAsPaid(UnmarkTransactionAsPaidRequest) returns (UnmarkTransactionAsPaidResponse);
   rpc SetTransactionExcluded(SetTransactionExcludedRequest) returns (SetTransactionExcludedResponse);
 
+  // Converts a variable transaction into a fixed-expense installment plan:
+  // excludes the transaction from totals, links it to the created plan, and
+  // creates the plan with the amount split evenly across the payments.
+  // Deliberately permitted on an archived period — see docs/features/installment-plans.md.
+  rpc CreateInstallmentPlan(CreateInstallmentPlanRequest) returns (CreateInstallmentPlanResponse);
+
   // Categories — user-scoped, unchanged
   rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse);
   rpc CreateCategory(CreateCategoryRequest) returns (CreateCategoryResponse);
@@ -184,6 +190,11 @@ message Transaction {
   string fixed_expense_id = 15; // set when spawned from a FixedExpense template
   bool is_excluded = 16; // excluded from totals without being deleted (e.g. non-spending transfers)
   bool is_plaid_imported = 17; // true when this transaction originated from a Plaid sync (the raw plaid_transaction_id is backend-internal only, used solely for dedup); clients use this to restrict edits to category-only
+  // Set when this transaction was converted into an installment plan. The
+  // transaction is also is_excluded; this field is what lets a client explain
+  // why, and refuse to toggle the exclusion back off (which would double-count
+  // the purchase alongside its own plan). Empty = not converted.
+  string installment_fixed_expense_id = 18;
 }
 
 // Profile-level template for a recurring fixed expense.
@@ -205,6 +216,11 @@ message FixedExpense {
   int32 day_of_week = 14; // 1 = Monday ... 7 = Sunday (ISO 8601); applies when frequency_unit = WEEK
   optional google.protobuf.Timestamp end_date = 15; // when set, the expense auto-deactivates after this date; the period containing this date is the last to spawn
   int32 total_payments = 16; // total number of payments in the plan; 0 = unset; informational only — end_date is the authoritative stop condition
+  // True when this template came from CreateInstallmentPlan. Card installments
+  // are settled inside the card's total balance, never as their own line item
+  // on a bank feed, so these are excluded from Plaid review auto-matching —
+  // any transaction scoring against one is a false positive by construction.
+  bool is_installment_plan = 17;
 }
 
 message Category {
@@ -565,6 +581,24 @@ message SetTransactionExcludedRequest {
 
 message SetTransactionExcludedResponse {
   Transaction transaction = 1;
+}
+
+message CreateInstallmentPlanRequest {
+  string transaction_id = 1;
+  string budget_period_id = 2;
+  // Date of the first payment. The client defaults this to the same day of
+  // month as the purchase, in the following month; the day is clamped to the
+  // last day of a short month when the plan spawns.
+  google.protobuf.Timestamp first_payment_date = 3;
+  int32 total_payments = 4;
+  // Optional override. When unset the server derives it as
+  // first_payment_date + (total_payments - 1) months.
+  optional google.protobuf.Timestamp end_date = 5;
+}
+
+message CreateInstallmentPlanResponse {
+  FixedExpense fixed_expense = 1;
+  Transaction transaction = 2; // the source transaction, now excluded and linked
 }
 
 // ─── Categories ──────────────────────────────────────────────────────────────
