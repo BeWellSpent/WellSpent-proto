@@ -14,6 +14,7 @@ service BudgetService {
   rpc GetBudgetProfile(GetBudgetProfileRequest) returns (GetBudgetProfileResponse);
   rpc UpdateBudgetProfile(UpdateBudgetProfileRequest) returns (UpdateBudgetProfileResponse);
   rpc SetBudgetCarryoverEnabled(SetBudgetCarryoverEnabledRequest) returns (SetBudgetCarryoverEnabledResponse);
+  rpc SetBudgetAutoUpdatePlannedAmount(SetBudgetAutoUpdatePlannedAmountRequest) returns (SetBudgetAutoUpdatePlannedAmountResponse);
   rpc DeleteBudgetProfile(DeleteBudgetProfileRequest) returns (DeleteBudgetProfileResponse);
 
   // BudgetPeriod — one per cycle window; first created on profile setup, rest by the cycling job
@@ -116,6 +117,16 @@ message BudgetProfile {
   // default — the cycling job runs unattended, so this has to be a stored
   // decision rather than a prompt.
   bool carryover_enabled = 6;
+  // When true, marking a fixed expense paid at an amount other than its plan
+  // rewrites the FixedExpense template, so the next period is planned at what
+  // the bill actually costs — the budget tracks inflation instead of drifting
+  // from reality. The period being paid keeps its original planned_amount;
+  // only future ones change.
+  //
+  // Defaults to true, which is what every path did unconditionally before this
+  // field existed. It is a budgeting judgement, not a mechanical one, so it
+  // belongs to the budget owner rather than being hardcoded.
+  bool auto_update_planned_amount = 7;
 }
 
 // One cycle window of a BudgetProfile. Auto-created by the cycling job;
@@ -318,6 +329,18 @@ message SetBudgetCarryoverEnabledRequest {
 }
 
 message SetBudgetCarryoverEnabledResponse {
+  BudgetProfile profile = 1;
+}
+
+// Same narrow shape and the same reasoning as SetBudgetCarryoverEnabled: a
+// field on UpdateBudgetProfileRequest would let an older client clobber this
+// by omission. Admin only.
+message SetBudgetAutoUpdatePlannedAmountRequest {
+  string budget_profile_id = 1;
+  bool enabled = 2;
+}
+
+message SetBudgetAutoUpdatePlannedAmountResponse {
   BudgetProfile profile = 1;
 }
 
