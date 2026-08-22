@@ -125,3 +125,68 @@ enum StatusBannerSeverity {
   STATUS_BANNER_SEVERITY_WARNING = 2; // yellow — degraded, but the app works
   STATUS_BANNER_SEVERITY_CRITICAL = 3; // red — something is badly broken
 }
+
+// Identifies one of the app's seeded system categories (is_system = TRUE,
+// user_id IS NULL). User-created categories always carry UNSPECIFIED.
+//
+// This exists because both clients special-case certain system categories —
+// Income is excluded from every total, Savings gets its own row treatment —
+// and until now they did it by comparing Category.name against the literal
+// English string. That made the names impossible to localize: the moment
+// `name` came back translated, every one of those comparisons would silently
+// stop matching, with no error anywhere. Matching on a typed value instead
+// makes a mistyped case a compile error and frees `name` to be a display
+// string.
+//
+// Clients render a system category's label from their own string catalog,
+// keyed on this enum, and fall back to Category.name (always English) when the
+// value is UNSPECIFIED or unknown to that client build. So a category seeded
+// after a client shipped still displays sensibly rather than as a raw key.
+//
+// Numbering follows the order the categories were seeded in, oldest first.
+// Adding a system category is deliberately a proto change: both clients
+// special-case these, so a silent migration is the wrong amount of friction.
+enum SystemCategory {
+  SYSTEM_CATEGORY_UNSPECIFIED = 0; // user-created, or unknown to this client
+
+  // Seeded by backend migration 000002.
+  SYSTEM_CATEGORY_ENTERTAINMENT = 1;
+  SYSTEM_CATEGORY_INSURANCE = 2;
+  SYSTEM_CATEGORY_LOAN = 3;
+  SYSTEM_CATEGORY_WELLNESS = 4;
+  SYSTEM_CATEGORY_SERVICES = 5;
+  SYSTEM_CATEGORY_SUBSCRIPTION = 6;
+  SYSTEM_CATEGORY_RENT = 7;
+  SYSTEM_CATEGORY_TRAVEL = 8;
+  SYSTEM_CATEGORY_EATING_OUT = 9;
+  SYSTEM_CATEGORY_GROCERIES = 10;
+  SYSTEM_CATEGORY_BABY = 11;
+  SYSTEM_CATEGORY_PET = 12;
+  SYSTEM_CATEGORY_MISC = 13;
+  SYSTEM_CATEGORY_HOUSE = 14;
+
+  // 000016
+  SYSTEM_CATEGORY_GAS = 15;
+  SYSTEM_CATEGORY_AUTO = 16;
+
+  // 000018 — the destination for savings-source transactions.
+  SYSTEM_CATEGORY_SAVINGS = 17;
+
+  // 000022
+  SYSTEM_CATEGORY_SHOPPING = 18;
+  SYSTEM_CATEGORY_FAMILY = 19;
+
+  // 000036 — always excluded from spending totals, regardless of is_excluded.
+  SYSTEM_CATEGORY_INCOME = 20;
+
+  // 000037
+  SYSTEM_CATEGORY_PAYMENT = 21;
+  SYSTEM_CATEGORY_TRANSFER = 22;
+
+  // 000046 — added for Plaid's TRANSPORTATION and RENT_AND_UTILITIES primaries.
+  SYSTEM_CATEGORY_TRANSPORTATION = 23;
+  SYSTEM_CATEGORY_UTILITIES = 24;
+
+  // 000052 — where a carried-forward shortfall lands.
+  SYSTEM_CATEGORY_DEBT = 25;
+}
