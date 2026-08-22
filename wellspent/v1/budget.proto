@@ -260,10 +260,15 @@ message FixedExpense {
 
 message Category {
   int32 id = 1;
+  // Always English, even for a system category. Clients render a system
+  // category from system_category via their own string catalog and use this
+  // only as the fallback when that value is UNSPECIFIED or unknown to them.
   string name = 2;
   int32 type_id = 3;
   bool is_system = 4;
   string color = 5;
+  // UNSPECIFIED for every user-created category. See SystemCategory.
+  SystemCategory system_category = 6;
 }
 
 message PaymentMethod {
