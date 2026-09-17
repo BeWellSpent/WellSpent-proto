@@ -28,6 +28,7 @@ service BudgetService {
   rpc UpdateBudgetPerson(UpdateBudgetPersonRequest) returns (UpdateBudgetPersonResponse);
   rpc UpdateBudgetPersonRole(UpdateBudgetPersonRoleRequest) returns (UpdateBudgetPersonRoleResponse);
   rpc UpdateMyBudgetPreferences(UpdateMyBudgetPreferencesRequest) returns (UpdateMyBudgetPreferencesResponse);
+  rpc UpdateMyManualMatchReviewPreference(UpdateMyManualMatchReviewPreferenceRequest) returns (UpdateMyManualMatchReviewPreferenceResponse);
   rpc RemoveBudgetPerson(RemoveBudgetPersonRequest) returns (RemoveBudgetPersonResponse);
 
   // Income sources — profile-level templates
@@ -152,6 +153,16 @@ message BudgetPerson {
   // them costs no extra round trip. UNSPECIFIED = use the client default.
   ChartType plan_chart_type = 7;
   ChartType overview_chart_type = 8;
+  // Whether a variable transaction this person creates or edits is scored
+  // against active fixed expense templates for a possible match (same logic
+  // Plaid sync uses) and queued in "To Review" on a hit. Personal, not
+  // budget-wide, and deliberately so: the underlying capability is entitled
+  // per the *acting* person's own account plan (Pro/Lifetime), not the
+  // budget owner's — an Admin inviting themselves onto many budgets must not
+  // be able to switch this on for other members who aren't personally
+  // entitled to it. Defaults true, matching what Create already did
+  // unconditionally for every plan before this preference existed.
+  bool manual_match_review_enabled = 9;
 }
 
 // Template for an income stream. Carries forward every period.
@@ -458,6 +469,25 @@ message UpdateMyBudgetPreferencesRequest {
 }
 
 message UpdateMyBudgetPreferencesResponse {
+  BudgetPerson person = 1;
+}
+
+// Updates the *caller's own* manual-match-review preference on a budget.
+// Deliberately its own narrow RPC rather than a third field on
+// UpdateMyBudgetPreferencesRequest — an older client calling that RPC
+// without the new field would silently reset this by omission, same
+// reasoning as SetBudgetCarryoverEnabled/SetBudgetAutoUpdatePlannedAmount.
+// Carries no person_id, same as UpdateMyBudgetPreferences: the person row is
+// resolved from the JWT, so there is no request shape that could write
+// another member's setting. Allowed for every role, Viewer included — only a
+// Collaborator/Admin can ever actually trigger the behavior this gates, but
+// there is no reason to special-case who may hold the preference.
+message UpdateMyManualMatchReviewPreferenceRequest {
+  string budget_profile_id = 1;
+  bool enabled = 2;
+}
+
+message UpdateMyManualMatchReviewPreferenceResponse {
   BudgetPerson person = 1;
 }
 
