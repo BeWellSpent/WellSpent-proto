@@ -157,9 +157,7 @@ message BudgetPerson {
   // Whether this person's transactions get scored against fixed expenses for
   // a match. Personal, not budget-wide — gated by their own plan. Defaults true.
   bool manual_match_review_enabled = 9;
-  // Whether Plan/Overview/Transactions/Income/Savings are scoped to this
-  // person's own data (plus unattributed rows) instead of the whole budget.
-  // Personal, not budget-wide. Defaults false — Full View is the default.
+  // Scopes the budget to this person's own data (plus unattributed). Defaults false.
   bool focused_view_enabled = 10;
 }
 
@@ -611,10 +609,7 @@ message ListTransactionsRequest {
   string budget_period_id = 1;
   int32 category_id = 2; // 0 = no filter
   int32 transaction_type_id = 3; // 0 = no filter
-  // When true, restricts to transactions attributed (via payment method) to
-  // the caller's own budget_person, plus unattributed transactions. Never
-  // takes a person_id — always resolved from the caller's own JWT.
-  bool focused_view = 4;
+  bool focused_view = 4; // restricts to the caller's own person + unattributed
 }
 
 message ListTransactionsResponse {
@@ -920,10 +915,7 @@ message TransactionReview {
   // savings included, with no separate savings-specific matching path.
   string matched_transaction_id = 11;
   string matched_transaction_name = 12;
-  // Resolved owner (via payment method) of each side of the match, 0 =
-  // unattributed. Lets a client viewing this list in Focused View flag a
-  // review that involves someone else's data, without re-deriving the
-  // payment-method-to-person lookup itself.
+  // Resolved owner of each side (via payment method), 0 = unattributed.
   int64 transaction_person_id = 13;
   int64 matched_transaction_person_id = 14;
 }
@@ -996,11 +988,7 @@ message PersonExpenseSummary {
 
 message GetExpenseSummaryRequest {
   string budget_period_id = 1;
-  // When true, every total and per-category figure below is restricted to
-  // the caller's own budget_person (plus unattributed rows) instead of the
-  // whole budget. Never takes a person_id — always resolved from the
-  // caller's own JWT, same as ListTransactionsRequest.focused_view.
-  bool focused_view = 2;
+  bool focused_view = 2; // restricts to the caller's own person + unattributed
 }
 
 message GetExpenseSummaryResponse {
