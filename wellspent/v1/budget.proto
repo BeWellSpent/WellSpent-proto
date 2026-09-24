@@ -68,6 +68,10 @@ service BudgetService {
   // any payment has been marked paid — that is real recorded spend.
   rpc DeleteInstallmentPlan(DeleteInstallmentPlanRequest) returns (DeleteInstallmentPlanResponse);
 
+  // Creates a FixedExpense from a variable transaction, then auto-confirms
+  // the match like a regular Transaction Review.
+  rpc CreateFixedExpenseFromTransaction(CreateFixedExpenseFromTransactionRequest) returns (CreateFixedExpenseFromTransactionResponse);
+
   // Categories — user-scoped, unchanged
   rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse);
   rpc CreateCategory(CreateCategoryRequest) returns (CreateCategoryResponse);
@@ -725,6 +729,22 @@ message DeleteInstallmentPlanRequest {
 
 message DeleteInstallmentPlanResponse {
   Transaction transaction = 1; // the source transaction, counting again
+}
+
+message CreateFixedExpenseFromTransactionRequest {
+  string transaction_id = 1;
+  string budget_period_id = 2;
+  string name = 3; // optional rename; empty keeps the transaction's own name
+  optional google.protobuf.Timestamp anchor_date = 4; // interval anchor + scheduling day
+  FrequencyUnit frequency_unit = 5; // UNSPECIFIED/MONTH (default) or WEEK
+  int32 interval_months = 6; // applies when frequency_unit = MONTH
+  int32 interval_weeks = 7; // applies when frequency_unit = WEEK
+  int32 day_of_week = 8; // 1 = Monday ... 7 = Sunday; applies when frequency_unit = WEEK
+}
+
+message CreateFixedExpenseFromTransactionResponse {
+  FixedExpense fixed_expense = 1;
+  Transaction transaction = 2; // the source transaction, now excluded and matched
 }
 
 // ─── Categories ──────────────────────────────────────────────────────────────
