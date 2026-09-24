@@ -29,6 +29,7 @@ service BudgetService {
   rpc UpdateBudgetPersonRole(UpdateBudgetPersonRoleRequest) returns (UpdateBudgetPersonRoleResponse);
   rpc UpdateMyBudgetPreferences(UpdateMyBudgetPreferencesRequest) returns (UpdateMyBudgetPreferencesResponse);
   rpc UpdateMyManualMatchReviewPreference(UpdateMyManualMatchReviewPreferenceRequest) returns (UpdateMyManualMatchReviewPreferenceResponse);
+  rpc UpdateMyFocusedViewPreference(UpdateMyFocusedViewPreferenceRequest) returns (UpdateMyFocusedViewPreferenceResponse);
   rpc RemoveBudgetPerson(RemoveBudgetPersonRequest) returns (RemoveBudgetPersonResponse);
 
   // Income sources — profile-level templates
@@ -156,6 +157,8 @@ message BudgetPerson {
   // Whether this person's transactions get scored against fixed expenses for
   // a match. Personal, not budget-wide — gated by their own plan. Defaults true.
   bool manual_match_review_enabled = 9;
+  // Scopes the budget to this person's own data (plus unattributed). Defaults false.
+  bool focused_view_enabled = 10;
 }
 
 // Template for an income stream. Carries forward every period.
@@ -477,6 +480,16 @@ message UpdateMyManualMatchReviewPreferenceResponse {
   BudgetPerson person = 1;
 }
 
+// Updates the caller's own preference. Same self-only shape as the two above.
+message UpdateMyFocusedViewPreferenceRequest {
+  string budget_profile_id = 1;
+  bool enabled = 2;
+}
+
+message UpdateMyFocusedViewPreferenceResponse {
+  BudgetPerson person = 1;
+}
+
 // ─── Income sources ──────────────────────────────────────────────────────────
 
 message AddIncomeSourceRequest {
@@ -596,6 +609,7 @@ message ListTransactionsRequest {
   string budget_period_id = 1;
   int32 category_id = 2; // 0 = no filter
   int32 transaction_type_id = 3; // 0 = no filter
+  bool focused_view = 4; // restricts to the caller's own person + unattributed
 }
 
 message ListTransactionsResponse {
@@ -901,6 +915,9 @@ message TransactionReview {
   // savings included, with no separate savings-specific matching path.
   string matched_transaction_id = 11;
   string matched_transaction_name = 12;
+  // Resolved owner of each side (via payment method), 0 = unattributed.
+  int64 transaction_person_id = 13;
+  int64 matched_transaction_person_id = 14;
 }
 
 message ListTransactionReviewsRequest {
@@ -971,6 +988,7 @@ message PersonExpenseSummary {
 
 message GetExpenseSummaryRequest {
   string budget_period_id = 1;
+  bool focused_view = 2; // restricts to the caller's own person + unattributed
 }
 
 message GetExpenseSummaryResponse {
