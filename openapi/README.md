@@ -1,10 +1,37 @@
 # OpenAPI contracts
 
-`.proto` is still the contract for almost the whole API. This directory holds a
-**second, parallel contract** covering the handful of endpoints that are better
-served as plain cacheable HTTP.
+`.proto` is still the contract for the **live Go backend's** API. This
+directory holds a second contract, which now serves two different purposes —
+read the one that applies to the endpoint you're touching before changing
+either of them.
 
-## What belongs here
+## Two eras, one file
+
+**Original purpose (still true for the Go backend):** a narrow, parallel
+transport for the handful of endpoints better served as plain cacheable HTTP
+than Connect — see "What belongs here" below. This is what `ping`,
+`countries`, `status/banner`, and `changelog` are, and the global +
+rarely-changing rule still gates anything added to that set.
+
+**New purpose (the C#/.NET rewrite, see `WellSpent-backend/dotnet/` and
+[GitHub issue #78](https://github.com/BeWellSpent/WellSpent/issues/78)):** this
+file is also, separately, becoming the **full** REST contract for a new C#
+backend that replaces ConnectRPC entirely once the rewrite completes. Domains
+are converted here one at a time, immediately before that domain is
+implemented in C# — see the `auth`/`users` tags for the first slice (issue
+#80). Everything the "global + rarely-changing" rule excludes for the Go
+transport — personalized reads, every mutation — belongs here under this
+second purpose, because the whole point of the rewrite is that REST replaces
+Connect for those too. **Do not apply the global + rarely-changing test to a
+tag that belongs to the rewrite** — it was never meant to gate those, and the
+two purposes are additive to the same file, not in tension.
+
+The `.proto` files are untouched by this: the live Go backend keeps serving
+Register/Login/GetMe/etc. over Connect exactly as it does today, for the
+entire duration of the rewrite. Nothing here retires a Connect RPC until the
+clients actually cut over (see the rewrite's roadmap, Macro Phases C1/C2/D).
+
+## What belongs here (the original, narrow transport)
 
 An endpoint qualifies only if it is **both**:
 
@@ -12,9 +39,9 @@ An endpoint qualifies only if it is **both**:
    filtering, and
 2. **Rarely-changing** — measured in days or weeks, not seconds.
 
-Everything else stays on ConnectRPC. Personalized reads gain nothing from HTTP
-caching (every response is unique anyway) and lose the shared typed schema.
-Every mutation stays on Connect, without exception.
+Everything else stays on ConnectRPC — for the **Go backend**. (For the C#
+rewrite's tags, see "Two eras, one file" above: everything belongs there,
+including mutations.)
 
 Today that is exactly three endpoints, plus a probe:
 

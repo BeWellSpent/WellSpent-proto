@@ -34,6 +34,18 @@ tags:
     description: Operator-authored service status.
   - name: changelog
     description: Release notes.
+  - name: auth
+    description: |
+      Part of the C#/.NET rewrite's full REST contract (issue #78/#80) — see
+      openapi/README.md's "Two eras, one file". Converted 1:1 from
+      `AuthService` in `auth.proto`; the Go backend keeps serving these over
+      Connect until the rewrite's clients cut over. Every endpoint here is
+      public — no session exists yet.
+  - name: users
+    description: |
+      Part of the C#/.NET rewrite's full REST contract (issue #78/#80).
+      Converted 1:1 from `UserService` in `user.proto`. Every endpoint here
+      requires bearerAuth and operates on the caller's own account only.
 
 components:
   securitySchemes:
@@ -86,6 +98,24 @@ components:
             $ref: '#/components/schemas/Error'
     InternalError:
       description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadRequest:
+      description: The request failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: The resource already exists (e.g. an email address already in use).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotImplemented:
+      description: Mirrors the Go backend's RefreshToken, which also returns Unimplemented — not a gap introduced by the rewrite.
       content:
         application/json:
           schema:
@@ -264,6 +294,293 @@ components:
         serverVersion:
           type: string
 
+    # ── auth / users (C#/.NET rewrite — see the "auth"/"users" tags) ──────────
+
+    TokenResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn]
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          enum: [bearer]
+        expiresIn:
+          type: integer
+          format: int64
+          description: Seconds until the token expires.
+
+    RegisterRequest:
+      type: object
+      required: [email, password, firstName, lastName, countryCode, stateCode, language, currency, captchaToken]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          description: '≥8 characters, at least one uppercase, lowercase, digit, and special character.'
+        firstName:
+          type: string
+        lastName:
+          type: string
+        countryCode:
+          type: string
+          description: ISO 3166-1 alpha-2, e.g. "US". Empty for none.
+        stateCode:
+          type: string
+          description: US only, e.g. "CA". Empty for non-US.
+        language:
+          type: string
+          description: BCP 47 locale code. Empty defaults to "en".
+        currency:
+          type: string
+          description: ISO 4217 currency code. Empty defaults to "USD".
+        captchaToken:
+          type: string
+          description: Cloudflare Turnstile response token. Only enforced when the server has captcha enforcement enabled.
+
+    LoginRequest:
+      type: object
+      required: [email, password, rememberMe]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        rememberMe:
+          type: boolean
+          description: true issues a 90-day token; false (default) issues a 24-hour token.
+
+    LoginResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn, language, currency]
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          enum: [bearer]
+        expiresIn:
+          type: integer
+          format: int64
+        language:
+          type: string
+          description: The user's stored locale preference.
+        currency:
+          type: string
+          description: The user's stored currency preference.
+
+    RefreshTokenRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    GoogleAuthUrlResponse:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+
+    GoogleExchangeRequest:
+      type: object
+      required: [code, redirectUri, language, currency]
+      properties:
+        code:
+          type: string
+        redirectUri:
+          type: string
+        language:
+          type: string
+          description: Used for new users only.
+        currency:
+          type: string
+          description: Used for new users only.
+
+    OAuthSignInResponse:
+      type: object
+      required: [accessToken, expiresIn, isNewUser, language, currency]
+      properties:
+        accessToken:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+        isNewUser:
+          type: boolean
+        language:
+          type: string
+          description: New user — from the request. Returning user — from their stored profile.
+        currency:
+          type: string
+          description: New user — from the request. Returning user — from their stored profile.
+
+    AppleSignInRequest:
+      type: object
+      required: [identityToken, authorizationCode, firstName, lastName, language, currency]
+      properties:
+        identityToken:
+          type: string
+          description: Apple id_token (RS256 JWT) from ASAuthorizationAppleIDCredential — verified server-side against Apple's JWKS.
+        authorizationCode:
+          type: string
+          description: One-time code, exchanged server-side for a refresh token so the account can be revoked on deletion.
+        firstName:
+          type: string
+          description: Apple supplies the name only on the very first authorization, never again — persisted on first link.
+        lastName:
+          type: string
+        language:
+          type: string
+          description: Used for new users only — defaults to "en".
+        currency:
+          type: string
+          description: Used for new users only — defaults to "USD".
+
+    VerifyEmailRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+
+    VerifyEmailResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
+    ResendVerificationEmailRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    UserPlan:
+      type: string
+      enum: [free, pro, lifetime]
+
+    User:
+      type: object
+      required: [id, email, isActive, isVerified, createdAt, filingStatus, taxPaymentFrequency, language, currency, plan, hasApplePrivateEmail]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        isVerified:
+          type: boolean
+          description: Whether this account may use the app — already accounts for the test-account exemption. Clients gate on this and nothing else.
+        createdAt:
+          type: string
+          format: date-time
+        countryCode:
+          type: string
+          nullable: true
+          description: ISO 3166-1 alpha-2, e.g. "US".
+        stateCode:
+          type: string
+          nullable: true
+          description: US only, e.g. "CA".
+        filingStatus:
+          type: integer
+          description: 'Proto FilingStatus enum value: 0=unspecified, 1=single, 2=married_filing_jointly, 3=married_filing_separately, 4=head_of_household, 5=qualifying_surviving_spouse.'
+        taxPaymentFrequency:
+          type: integer
+          description: 'Proto TaxPaymentFrequency enum value — doubles as the window length in months: 0=unspecified, 1=monthly, 3=quarterly, 4=four_monthly, 6=semi_annual, 12=annual.'
+        language:
+          type: string
+          description: BCP 47 locale code.
+        currency:
+          type: string
+          description: ISO 4217 currency code.
+        plan:
+          $ref: '#/components/schemas/UserPlan'
+        hasApplePrivateEmail:
+          type: boolean
+          description: True when the address is an Apple "Hide My Email" alias — clients show "Signed with Apple" rather than the address.
+
+    GetMeResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+
+    UpdateMeRequest:
+      type: object
+      required: [firstName, lastName, countryCode, stateCode, filingStatus, taxPaymentFrequency, language, currency]
+      description: |
+        Full profile replace, not a partial patch: firstName/lastName/
+        countryCode/stateCode are cleared to null when sent empty rather than
+        left unchanged, and every other field is always written as given.
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        countryCode:
+          type: string
+        stateCode:
+          type: string
+        filingStatus:
+          type: integer
+        taxPaymentFrequency:
+          type: integer
+        language:
+          type: string
+        currency:
+          type: string
+
+    UpdateMeResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+
+    ChangeEmailRequest:
+      type: object
+      required: [newEmail]
+      properties:
+        newEmail:
+          type: string
+          format: email
+
+    ChangeEmailResponse:
+      type: object
+      required: [user]
+      description: The updated user, with isVerified now false.
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+
 paths:
   /rest/v1/ping:
     get:
@@ -402,6 +719,395 @@ paths:
           $ref: '#/components/responses/NotModified'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── auth (C#/.NET rewrite — see openapi/README.md's "Two eras, one file") ──
+
+  /rest/v1/auth/register:
+    post:
+      operationId: registerUser
+      security: []
+      tags: [auth]
+      summary: Create an account with email + password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Account created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: An account with this email already exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/auth/login:
+    post:
+      operationId: login
+      security: []
+      tags: [auth]
+      summary: Verify credentials and issue a token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Invalid email or password, or the account uses OAuth login only.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: The account is inactive or deactivated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Stub — JWT is stateless; the client discards its own token.
+      security: []
+      responses:
+        '200':
+          description: Always succeeds.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /rest/v1/auth/refresh-token:
+    post:
+      operationId: refreshToken
+      security: []
+      tags: [auth]
+      summary: Not implemented — mirrors the Go backend, which also returns Unimplemented here.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+
+  /rest/v1/auth/google/url:
+    get:
+      operationId: getGoogleAuthUrl
+      security: []
+      tags: [auth]
+      summary: Build the Google OAuth consent-screen URL.
+      parameters:
+        - name: state
+          in: query
+          required: true
+          description: CSRF token from the client.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The URL to redirect the browser to.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoogleAuthUrlResponse'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /rest/v1/auth/google/exchange:
+    post:
+      operationId: exchangeGoogleCode
+      security: []
+      tags: [auth]
+      summary: Exchange a Google OAuth authorization code for a session.
+      description: |
+        Resolves by Google's stable subject first, falling back to matching an
+        existing account by email — so a user who signed up with email/
+        password and later uses Google with the same address signs into that
+        account rather than creating a duplicate.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleExchangeRequest'
+      responses:
+        '200':
+          description: Authenticated. Always a 90-day token — neither OAuth flow has a "remember me" control.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthSignInResponse'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/auth/apple/sign-in:
+    post:
+      operationId: signInWithApple
+      security: []
+      tags: [auth]
+      summary: Resolve a native Sign in with Apple credential to a session.
+      description: |
+        Mirrors exchangeGoogleCode's account-resolution order. Linking to a
+        pre-existing account by email is refused when Apple reports the
+        address unverified — only creating a fresh account is safe on that
+        signal.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppleSignInRequest'
+      responses:
+        '200':
+          description: Authenticated. Always a 90-day token — neither OAuth flow has a "remember me" control.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthSignInResponse'
+        '400':
+          description: Invalid or unverifiable identity token, missing email, or Apple did not confirm the email address.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: The resolved account is inactive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/auth/verify-email:
+    post:
+      operationId: verifyEmail
+      security: []
+      tags: [auth]
+      summary: Redeem a verification-email token.
+      description: Errors are deliberately generic — a caller cannot distinguish "wrong token" from "expired" from "never existed".
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+      responses:
+        '200':
+          description: Verified.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyEmailResponse'
+        '400':
+          description: Invalid or expired verification token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/auth/resend-verification-email:
+    post:
+      operationId: resendVerificationEmail
+      security: []
+      tags: [auth]
+      summary: Re-send the verification-email link.
+      description: |
+        Always succeeds (200) for an unknown or already-verified email, to
+        avoid leaking account existence — only a too-soon repeat request for a
+        real, unverified account is rejected (60-second cooldown).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResendVerificationEmailRequest'
+      responses:
+        '200':
+          description: Always returned for an unknown or already-verified email.
+        '400':
+          description: Requested again within the 60-second cooldown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── users (C#/.NET rewrite) ─────────────────────────────────────────────────
+
+  /rest/v1/users/me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: The authenticated user's own profile.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The caller's profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetMeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: updateMe
+      tags: [users]
+      summary: Replace the authenticated user's profile.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMeRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateMeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteMe
+      tags: [users]
+      summary: Soft-delete the authenticated user's account.
+      description: |
+        Deactivates the account immediately (30-day recovery window via
+        support) and revokes the user's Apple credentials with Apple first,
+        if any are on file, as App Store Review 5.1.1(v) requires.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/users/me/change-password:
+    post:
+      operationId: changePassword
+      tags: [users]
+      summary: Change the authenticated user's password.
+      description: Requires the current password — unlike changeEmail, which does not.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Changed.
+        '400':
+          description: Current password incorrect, or the account uses OAuth login only.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/users/me/change-email:
+    post:
+      operationId: changeEmail
+      tags: [users]
+      summary: Replace the authenticated user's email address.
+      description: |
+        Resets verification for the new address and sends a fresh
+        verification link. Deliberately does not require the current
+        password — the bearer token already proves the session, and an
+        OAuth-only account has no password to check.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeEmailRequest'
+      responses:
+        '200':
+          description: Changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChangeEmailResponse'
+        '400':
+          description: Invalid email address, or this is already the caller's address.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
