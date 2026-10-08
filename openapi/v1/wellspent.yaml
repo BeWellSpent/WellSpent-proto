@@ -56,6 +56,19 @@ tags:
       Part of the C#/.NET rewrite's full REST contract (issue #78/#80).
       Converted 1:1 from `UserService` in `user.proto`. Every endpoint here
       requires bearerAuth and operates on the caller's own account only.
+  - name: notifications
+    description: |
+      Part of the C#/.NET rewrite's full REST contract (issue #78/#82).
+      Converted 1:1 from `NotificationService` in `notification.proto`. The
+      trigger/fan-out side (firing a notification when a transaction is
+      created, a period starts, etc.) isn't here — those arrive with
+      whichever sub-issue ports the triggering domain.
+  - name: invites
+    description: |
+      Part of the C#/.NET rewrite's full REST contract (issue #78/#82).
+      Converted 1:1 from `InviteService` in `invite.proto`. Every endpoint
+      except the public token lookup requires bearerAuth; send/list/cancel
+      additionally require the caller to be an admin on the budget.
 
 components:
   securitySchemes:
@@ -369,6 +382,238 @@ components:
       properties:
         release:
           $ref: '#/components/schemas/ChangelogRelease'
+
+    # ── notifications / invites (C#/.NET rewrite — see the "notifications"/
+    #    "invites" tags and openapi/README.md's "Two eras, one file") ─────────
+
+    Notification:
+      type: object
+      required: [id, userId, alertType, title, isRead, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        budgetProfileId:
+          type: string
+          format: uuid
+          nullable: true
+        alertType:
+          type: string
+          description: Matches AlertSubscription.alertType values.
+        title:
+          type: string
+        body:
+          type: string
+          nullable: true
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    ListNotificationsResponse:
+      type: object
+      required: [notifications, unreadCount]
+      properties:
+        notifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+        unreadCount:
+          type: integer
+
+    MarkNotificationsReadRequest:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Empty (or omitted) marks ALL of the caller's unread notifications as read.
+
+    UnreadCountResponse:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: integer
+
+    AlertSubscription:
+      type: object
+      required: [id, userId, budgetProfileId, alertType, channel, notifyAllMembers, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        budgetProfileId:
+          type: string
+          format: uuid
+        alertType:
+          type: string
+          description: 'One of: new_transaction, spending_threshold, period_created, review_pending. Not enforced as an enum server-side — mirrors the Go service exactly.'
+        channel:
+          type: string
+          description: 'One of: email, in_app, both. Not enforced as an enum server-side.'
+        thresholdPct:
+          type: number
+          nullable: true
+          description: 0-100; only meaningful when alertType is spending_threshold.
+        thresholdScope:
+          type: string
+          nullable: true
+          description: '"budget" or "category"; only meaningful for spending_threshold.'
+        categoryId:
+          type: integer
+          nullable: true
+        notifyAllMembers:
+          type: boolean
+          description: When true, the notification is fanned out to all active budget members.
+        createdAt:
+          type: string
+          format: date-time
+
+    AlertSubscriptionListResponse:
+      type: object
+      required: [subscriptions]
+      properties:
+        subscriptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertSubscription'
+
+    UpsertAlertSubscriptionRequest:
+      type: object
+      required: [budgetProfileId, alertType, channel, notifyAllMembers]
+      properties:
+        budgetProfileId:
+          type: string
+          format: uuid
+        alertType:
+          type: string
+        channel:
+          type: string
+        thresholdPct:
+          type: number
+          description: Only meaningful when alertType is spending_threshold; ignored otherwise.
+        thresholdScope:
+          type: string
+        categoryId:
+          type: integer
+          nullable: true
+        notifyAllMembers:
+          type: boolean
+
+    AlertSubscriptionResponse:
+      type: object
+      required: [subscription]
+      properties:
+        subscription:
+          $ref: '#/components/schemas/AlertSubscription'
+
+    RegisterDeviceTokenRequest:
+      type: object
+      required: [token, platform]
+      properties:
+        token:
+          type: string
+        platform:
+          type: string
+          enum: [ios]
+
+    BudgetInviteRole:
+      type: string
+      enum: [admin, collaborator, viewer]
+      description: SendBudgetInviteRequest only accepts collaborator/viewer — admin is rejected at write time, not narrowed out of this enum, matching the Go service's runtime check.
+
+    InviteStatus:
+      type: string
+      enum: [pending, accepted, cancelled, expired]
+
+    BudgetInvite:
+      type: object
+      required: [id, budgetProfileId, budgetName, inviterName, email, role, status, expiresAt, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        budgetProfileId:
+          type: string
+          format: uuid
+        budgetName:
+          type: string
+          description: Denormalized for display. Empty on sendBudgetInvite/listBudgetInvites (the caller already knows their own budget); populated only on getBudgetInvite, the public preview page.
+        inviterName:
+          type: string
+          description: Same emptiness rule as budgetName.
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/BudgetInviteRole'
+        status:
+          $ref: '#/components/schemas/InviteStatus'
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        budgetPersonId:
+          type: integer
+          format: int64
+          nullable: true
+          description: Non-null when linked to an existing placeholder person rather than creating a new one on acceptance.
+
+    SendBudgetInviteRequest:
+      type: object
+      required: [budgetProfileId, email, role]
+      properties:
+        budgetProfileId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [collaborator, viewer]
+        budgetPersonId:
+          type: integer
+          format: int64
+          nullable: true
+          description: Omit or 0 to create a new BudgetPerson on acceptance.
+
+    BudgetInviteResponse:
+      type: object
+      required: [invite]
+      properties:
+        invite:
+          $ref: '#/components/schemas/BudgetInvite'
+
+    BudgetInviteListResponse:
+      type: object
+      required: [invites]
+      properties:
+        invites:
+          type: array
+          items:
+            $ref: '#/components/schemas/BudgetInvite'
+
+    AcceptBudgetInviteResponse:
+      type: object
+      required: [budgetProfileId]
+      properties:
+        budgetProfileId:
+          type: string
+          format: uuid
+          description: So the frontend can redirect to the budget.
 
     PingResponse:
       type: object
@@ -1357,6 +1602,396 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '409':
           $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── notifications (C#/.NET rewrite — see openapi/README.md's "Two eras,
+  #    one file") ─────────────────────────────────────────────────────────────
+
+  /rest/v1/notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: The authenticated user's notifications, newest first.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: budgetProfileId
+          in: query
+          required: false
+          description: Omit to return notifications for every budget.
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          description: Defaults to 50.
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Matching notifications plus the caller's total unread count.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListNotificationsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/notifications/mark-read:
+    post:
+      operationId: markNotificationsRead
+      tags: [notifications]
+      summary: Mark one or more notifications as read.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkNotificationsReadRequest'
+      responses:
+        '200':
+          description: Marked.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/notifications/unread-count:
+    get:
+      operationId: getUnreadCount
+      tags: [notifications]
+      summary: The authenticated user's unread notification count.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The count.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnreadCountResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/notifications/alert-subscriptions:
+    get:
+      operationId: listAlertSubscriptions
+      tags: [notifications]
+      summary: The authenticated user's alert subscriptions for a budget.
+      description: No membership check — scoped by (userId, budgetProfileId) alone, so a non-member simply gets an empty list.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: budgetProfileId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Matching subscriptions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertSubscriptionListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: upsertAlertSubscription
+      tags: [notifications]
+      summary: Create or update an alert subscription.
+      description: |
+        Upserts on (userId, budgetProfileId, alertType, categoryId). The
+        caller must be a budget member — unlike invites' admin checks, a
+        non-member here gets a plain 404, not a 403 (mirrors the Go service
+        exactly). Free tier: `new_transaction` requires Pro, and free
+        accounts are capped at 2 subscriptions per budget.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertAlertSubscriptionRequest'
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertSubscriptionResponse'
+        '400':
+          description: Free-tier limit reached, or new_transaction requires Pro.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: The caller is not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/notifications/alert-subscriptions/{id}:
+    delete:
+      operationId: deleteAlertSubscription
+      tags: [notifications]
+      summary: Delete an alert subscription.
+      description: No-op (still 200) when the subscription doesn't exist or isn't owned by the caller — mirrors the Go repository's unconditional delete.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted (or already absent).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/notifications/device-tokens:
+    post:
+      operationId: registerDeviceToken
+      tags: [notifications]
+      summary: Register an APNs device token for push delivery.
+      description: Upserts by token — the same physical device re-registering just updates its owner.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDeviceTokenRequest'
+      responses:
+        '200':
+          description: Registered.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── invites (C#/.NET rewrite) ────────────────────────────────────────────────
+
+  /rest/v1/invites:
+    post:
+      operationId: sendBudgetInvite
+      tags: [invites]
+      summary: Invite a collaborator or viewer to a budget.
+      description: Admin only. budgetName/inviterName in the response are empty — the caller already knows their own budget.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendBudgetInviteRequest'
+      responses:
+        '200':
+          description: Sent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetInviteResponse'
+        '400':
+          description: Disallowed role (e.g. admin), or the linked budgetPersonId doesn't exist in this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not an admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listBudgetInvites
+      tags: [invites]
+      summary: List pending and cancelled invites for a budget.
+      description: Admin only. budgetName/inviterName are empty, same as sendBudgetInvite.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: budgetProfileId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Matching invites.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetInviteListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not an admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/invites/{id}/cancel:
+    post:
+      operationId: cancelBudgetInvite
+      tags: [invites]
+      summary: Cancel a pending invite.
+      description: Admin only.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Cancelled.
+        '400':
+          description: Only pending invites can be cancelled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not an admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/invite-tokens/{token}:
+    get:
+      operationId: getBudgetInvite
+      tags: [invites]
+      summary: Invite details by token — the public preview page shown before the user authenticates.
+      description: budgetName/inviterName are populated here (the only invite endpoint that does this).
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The invite.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetInviteResponse'
+        '400':
+          description: The invite has been cancelled, already accepted, or has expired.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/invite-tokens/{token}/accept:
+    post:
+      operationId: acceptBudgetInvite
+      tags: [invites]
+      summary: Accept an invite, linking the authenticated user to the budget.
+      description: |
+        If the invitee has no account they must register first — this RPC
+        always requires a bearer token. Idempotent against a narrow race
+        (the caller already being a member while the invite row is still
+        pending); once the invite's own status is "accepted" a repeat call
+        fails the same way getBudgetInvite does.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptBudgetInviteResponse'
+        '400':
+          description: The invite has been cancelled, already accepted, or has expired.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
