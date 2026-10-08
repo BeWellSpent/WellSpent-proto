@@ -31,9 +31,19 @@ tags:
   - name: reference
     description: Global reference data.
   - name: status
-    description: Operator-authored service status.
+    description: |
+      Operator-authored service status. The public GET was always here; the
+      superuser-only write paths (create/list/expire) are new, converted from
+      `StatusService` in status.proto as part of the C#/.NET rewrite (issue
+      #78/#81) — see openapi/README.md's "Two eras, one file". The Go backend
+      keeps serving the public read over Connect-adjacent REST and the writes
+      over Connect until the rewrite's clients cut over.
   - name: changelog
-    description: Release notes.
+    description: |
+      Release notes. The authenticated GET was always here; the superuser-only
+      create path is new, converted from `ChangelogService` in changelog.proto
+      as part of the C#/.NET rewrite (issue #78/#81) — see openapi/README.md's
+      "Two eras, one file".
   - name: auth
     description: |
       Part of the C#/.NET rewrite's full REST contract (issue #78/#80) — see
@@ -283,6 +293,82 @@ components:
             but cannot otherwise tell how far the backend has moved since it
             last looked.
           example: 1.1.0
+
+    # ── status/changelog writes (C#/.NET rewrite — see the "status"/"changelog"
+    #    tags and openapi/README.md's "Two eras, one file") ────────────────────
+
+    CreateStatusBannerRequest:
+      type: object
+      required: [severity, messageEn, endsAt]
+      properties:
+        severity:
+          $ref: '#/components/schemas/StatusBannerSeverity'
+        messageEn:
+          type: string
+          maxLength: 300
+        messageEs:
+          type: string
+          maxLength: 300
+          description: Optional. Falls back to the English text on clients when empty.
+        startsAt:
+          type: string
+          format: date-time
+          description: Optional — defaults to now, so the common case of "announce this immediately" needs no timestamp arithmetic under pressure.
+        endsAt:
+          type: string
+          format: date-time
+          description: Required, and must be after startsAt and in the future.
+
+    StatusBannerListResponse:
+      type: object
+      required: [banners]
+      properties:
+        banners:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatusBanner'
+          description: The operator's full history, including expired rows — not the client-facing view.
+
+    CreateChangelogItemRequest:
+      type: object
+      required: [changeType, summaryEn]
+      properties:
+        changeType:
+          $ref: '#/components/schemas/ChangeType'
+        summaryEn:
+          type: string
+          maxLength: 300
+        summaryEs:
+          type: string
+          maxLength: 300
+          description: Optional. Falls back to the English text on clients when empty.
+
+    CreateChangelogReleaseRequest:
+      type: object
+      required: [component, version, items]
+      properties:
+        component:
+          $ref: '#/components/schemas/ChangelogComponent'
+        version:
+          type: string
+          maxLength: 40
+        releasedAt:
+          type: string
+          format: date-time
+          description: Optional — defaults to now, since publishing normally happens at release.
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CreateChangelogItemRequest'
+          description: At least one required. A release with nothing to say should not be published.
+
+    ChangelogReleaseResponse:
+      type: object
+      required: [release]
+      properties:
+        release:
+          $ref: '#/components/schemas/ChangelogRelease'
 
     PingResponse:
       type: object
@@ -719,6 +805,169 @@ paths:
           $ref: '#/components/responses/NotModified'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── status/changelog writes (C#/.NET rewrite — see openapi/README.md's
+  #    "Two eras, one file") ───────────────────────────────────────────────────
+
+  /rest/v1/status/banners:
+    post:
+      operationId: createStatusBanner
+      tags: [status]
+      summary: Author a new status banner.
+      description: |
+        Superuser-only, enforced server-side regardless of the bearer token's
+        owner. No admin UI — called directly during an incident.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStatusBannerRequest'
+      responses:
+        '200':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusBannerResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a superuser.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listStatusBanners
+      tags: [status]
+      summary: The operator's banner history, including expired rows.
+      description: Superuser-only. Not the client-facing view — see getActiveStatusBanner for that.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Newest first. Defaults to 50.
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+      responses:
+        '200':
+          description: The operator's banner history.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusBannerListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a superuser.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/status/banners/{id}/expire:
+    post:
+      operationId: expireStatusBanner
+      tags: [status]
+      summary: Take a banner down ahead of its scheduled end.
+      description: |
+        Moves endsAt to now. Rows are never deleted — what was announced, and
+        when, is worth keeping. Superuser-only.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Expired.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusBannerResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a superuser.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No banner with this id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/changelog/releases:
+    post:
+      operationId: createChangelogRelease
+      tags: [changelog]
+      summary: Publish one release and all its items.
+      description: |
+        Superuser-only. No admin UI — releases are normally published by
+        running `WellSpent-backend/scripts/changelog.sh` against a JSON file
+        authored in the repo alongside the code, at the moment the version
+        actually ships; this is the equivalent direct call for the new
+        backend. A duplicate (component, version) is rejected — republishing
+        a version has to fail loudly, not list it twice.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChangelogReleaseRequest'
+      responses:
+        '200':
+          description: Published.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChangelogReleaseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a superuser.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
