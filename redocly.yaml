@@ -7,6 +7,12 @@ rules:
   # The localhost entry in `servers` is deliberate — it is how both clients
   # point their generated code at a local backend during development.
   no-server-example.com: off
+  # /rest/v1/auth/refresh-token deliberately has only a 501 response — it
+  # mirrors the Go backend's RefreshToken RPC, which also returns
+  # Unimplemented and nothing else. Not a gap to fill in; see its path
+  # description in wellspent.yaml.
+  operation-2xx-response: off
+  operation-4xx-response: off
 
 apis:
   wellspent@v1:
