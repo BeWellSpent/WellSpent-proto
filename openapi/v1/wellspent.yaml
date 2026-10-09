@@ -912,6 +912,236 @@ components:
         user:
           $ref: '#/components/schemas/User'
 
+    BudgetCycle:
+      type: string
+      enum: [weekly, bi_weekly, monthly, yearly]
+
+    BudgetPersonRole:
+      type: string
+      enum: [admin, collaborator, viewer, unspecified]
+      description: unspecified means the person isn't linked to a registered user yet.
+
+    ChartType:
+      type: string
+      enum: [pie, bar]
+      nullable: true
+      description: Null means "use the client default" (pie).
+
+    BudgetProfile:
+      type: object
+      required: [id, userId, name, cycle, carryoverEnabled, autoUpdatePlannedAmount]
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        cycle:
+          $ref: '#/components/schemas/BudgetCycle'
+        countryCode:
+          type: string
+          nullable: true
+          description: Propagated from the owner at creation.
+        carryoverEnabled:
+          type: boolean
+          description: When true, closing a period carries its ending balance into the next one. Admin-only to toggle.
+        autoUpdatePlannedAmount:
+          type: boolean
+          description: When true, marking a fixed expense paid at a different amount rewrites its template for future periods. Admin-only to toggle.
+
+    BudgetPeriod:
+      type: object
+      required: [id, budgetProfileId, startDate, endDate, isArchived]
+      properties:
+        id:
+          type: string
+          format: uuid
+        budgetProfileId:
+          type: string
+          format: uuid
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        isArchived:
+          type: boolean
+
+    BudgetPerson:
+      type: object
+      required: [id, budgetProfileId, color, role, manualMatchReviewEnabled, focusedViewEnabled]
+      properties:
+        id:
+          type: integer
+          format: int64
+        budgetProfileId:
+          type: string
+          format: uuid
+        userName:
+          type: string
+          nullable: true
+        userId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Null when the person is not a registered user.
+        color:
+          type: string
+        role:
+          $ref: '#/components/schemas/BudgetPersonRole'
+        planChartType:
+          $ref: '#/components/schemas/ChartType'
+        overviewChartType:
+          $ref: '#/components/schemas/ChartType'
+        manualMatchReviewEnabled:
+          type: boolean
+          description: This person's own transactions get scored against fixed expenses for a match. Personal, not budget-wide.
+        focusedViewEnabled:
+          type: boolean
+          description: Scopes the budget to this person's own data (plus unattributed). Personal, not budget-wide.
+
+    CreateBudgetProfileRequest:
+      type: object
+      required: [name, cycle]
+      properties:
+        name:
+          type: string
+        cycle:
+          $ref: '#/components/schemas/BudgetCycle'
+
+    CreateBudgetProfileResponse:
+      type: object
+      required: [profile]
+      properties:
+        profile:
+          $ref: '#/components/schemas/BudgetProfile'
+        period:
+          $ref: '#/components/schemas/BudgetPeriod'
+          description: Omitted on the rare case the first period failed to create — the profile still exists and can retry via createBudgetPeriod.
+
+    BudgetProfileResponse:
+      type: object
+      required: [profile]
+      properties:
+        profile:
+          $ref: '#/components/schemas/BudgetProfile'
+
+    BudgetProfileListResponse:
+      type: object
+      required: [profiles]
+      properties:
+        profiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/BudgetProfile'
+
+    UpdateBudgetProfileRequest:
+      type: object
+      required: [name, cycle]
+      properties:
+        name:
+          type: string
+        cycle:
+          $ref: '#/components/schemas/BudgetCycle'
+
+    EnabledRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+
+    BudgetPeriodResponse:
+      type: object
+      required: [period]
+      properties:
+        period:
+          $ref: '#/components/schemas/BudgetPeriod'
+
+    BudgetPeriodListResponse:
+      type: object
+      required: [periods]
+      properties:
+        periods:
+          type: array
+          items:
+            $ref: '#/components/schemas/BudgetPeriod'
+
+    NewBudgetPerson:
+      type: object
+      required: [userName]
+      properties:
+        userName:
+          type: string
+        userId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Set when inviting an existing registered user straight onto the budget.
+        color:
+          type: string
+
+    AddBudgetPeopleRequest:
+      type: object
+      required: [people]
+      properties:
+        people:
+          type: array
+          items:
+            $ref: '#/components/schemas/NewBudgetPerson'
+
+    BudgetPersonResponse:
+      type: object
+      required: [person]
+      properties:
+        person:
+          $ref: '#/components/schemas/BudgetPerson'
+
+    BudgetPersonListResponse:
+      type: object
+      required: [people]
+      properties:
+        people:
+          type: array
+          items:
+            $ref: '#/components/schemas/BudgetPerson'
+
+    AddBudgetPeopleResponse:
+      type: object
+      required: [people]
+      properties:
+        people:
+          type: array
+          items:
+            $ref: '#/components/schemas/BudgetPerson'
+
+    UpdateBudgetPersonRequest:
+      type: object
+      required: [color]
+      properties:
+        color:
+          type: string
+
+    UpdateBudgetPersonRoleRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [admin, collaborator, viewer]
+
+    UpdateMyBudgetPreferencesRequest:
+      type: object
+      properties:
+        planChartType:
+          $ref: '#/components/schemas/ChartType'
+        overviewChartType:
+          $ref: '#/components/schemas/ChartType'
+
 paths:
   /rest/v1/ping:
     get:
@@ -1992,6 +2222,714 @@ paths:
                 $ref: '#/components/schemas/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets:
+    post:
+      operationId: createBudgetProfile
+      tags: [budgets]
+      summary: Create the caller's budget profile and its first period.
+      description: Capped at one owned profile per account, regardless of plan tier. Auto-adds the caller as the first BudgetPerson (admin).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBudgetProfileRequest'
+      responses:
+        '200':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateBudgetProfileResponse'
+        '400':
+          description: The caller already owns a budget, or the name is a duplicate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listBudgetProfiles
+      tags: [budgets]
+      summary: Budgets the caller owns or is an active member of.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Matching profiles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetProfileListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}:
+    get:
+      operationId: getBudgetProfile
+      tags: [budgets]
+      summary: A single budget profile.
+      description: Any active member may read it.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetProfileResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No budget profile with this id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: updateBudgetProfile
+      tags: [budgets]
+      summary: Rename a budget or change its cycle.
+      description: Admin only.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBudgetProfileRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetProfileResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not an admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteBudgetProfile
+      tags: [budgets]
+      summary: Delete a budget profile and everything hanging off it.
+      description: Admin only. Cascades to people, periods, income, savings, transactions, and payment methods.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not an admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/carryover-enabled:
+    put:
+      operationId: setBudgetCarryoverEnabled
+      tags: [budgets]
+      summary: Turn period carryover on or off.
+      description: Admin only. Its own endpoint rather than a field on updateBudgetProfile, so an older client calling that one can't silently switch this back off by omission.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnabledRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetProfileResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not an admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/auto-update-planned-amount:
+    put:
+      operationId: setBudgetAutoUpdatePlannedAmount
+      tags: [budgets]
+      summary: Turn fixed-expense auto-replanning on or off.
+      description: Admin only. Same narrow-endpoint reasoning as setBudgetCarryoverEnabled.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnabledRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetProfileResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not an admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/periods:
+    post:
+      operationId: createBudgetPeriod
+      tags: [budgets]
+      summary: Roll the budget forward to its next cycle window.
+      description: |
+        Admin only. Idempotent — if the current period hasn't ended yet, returns
+        it unchanged rather than creating a second one. This backend's version
+        of this endpoint only creates/archives the period row itself; income
+        pre-fill, fixed-expense spawn, and carryover land in later migration
+        batches (see docs/features/refactor-backend-csharp.md) — the live Go
+        backend is still the one actually running period rollovers in
+        production.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The current (possibly newly-created) period.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetPeriodResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not an admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listBudgetPeriods
+      tags: [budgets]
+      summary: Every period for a budget, newest first.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Matching periods.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetPeriodListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budget-periods/{id}:
+    get:
+      operationId: getBudgetPeriod
+      tags: [budgets]
+      summary: A single period by its own id.
+      description: Separate namespace from /budgets/{id}/periods — the profile is resolved from the period, not the other way round.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The period.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetPeriodResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this period's budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No period with this id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/people:
+    post:
+      operationId: addBudgetPeople
+      tags: [budgets]
+      summary: Add one or more people to a budget.
+      description: Admin only. Free tier caps a budget at 2 active people. A linked userId must be in the same country as the budget.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddBudgetPeopleRequest'
+      responses:
+        '200':
+          description: Added.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddBudgetPeopleResponse'
+        '400':
+          description: Free-tier limit reached, a duplicate name, or a country mismatch.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not an admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listBudgetPeople
+      tags: [budgets]
+      summary: Every active person on a budget.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Matching people.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetPersonListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/people/{personId}:
+    put:
+      operationId: updateBudgetPerson
+      tags: [budgets]
+      summary: Change a person's display color.
+      description: Admin only.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: personId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBudgetPersonRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetPersonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not an admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: removeBudgetPerson
+      tags: [budgets]
+      summary: Remove a person from a budget.
+      description: Admin only. The profile owner cannot be removed. Omit replacementPersonId for a plain soft-remove; set it (plus replacementPaymentMethodId if the person had one) to reassign their income entries and payment-method transactions first.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: personId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: replacementPersonId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: replacementPaymentMethodId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Removed.
+        '400':
+          description: Attempted to remove the budget owner, or replacementPersonId doesn't belong to this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not an admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/people/{personId}/role:
+    put:
+      operationId: updateBudgetPersonRole
+      tags: [budgets]
+      summary: Change a person's role.
+      description: Admin only.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: personId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBudgetPersonRoleRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetPersonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not an admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/my-preferences:
+    put:
+      operationId: updateMyBudgetPreferences
+      tags: [budgets]
+      summary: Set the caller's own chart preferences on a budget.
+      description: Any role, Viewer included — this is presentation, not budget data. No personId in the request; the row is resolved from the bearer token, so this can never write another member's settings.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMyBudgetPreferencesRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetPersonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/my-manual-match-review-preference:
+    put:
+      operationId: updateMyManualMatchReviewPreference
+      tags: [budgets]
+      summary: Set whether the caller's own transactions get scored for a fixed-expense match on manual add/edit.
+      description: Any role. Personal, not budget-wide — same no-personId shape as updateMyBudgetPreferences.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnabledRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetPersonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/my-focused-view-preference:
+    put:
+      operationId: updateMyFocusedViewPreference
+      tags: [budgets]
+      summary: Scope the caller's own view of the budget to their own data plus unattributed rows.
+      description: Any role. Personal, not budget-wide — same no-personId shape as updateMyBudgetPreferences.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnabledRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetPersonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
