@@ -1355,6 +1355,121 @@ components:
           items:
             $ref: '#/components/schemas/SavingsSource'
 
+    Category:
+      type: object
+      required: [id, name, isSystem, color]
+      properties:
+        id:
+          type: integer
+          format: int32
+        name:
+          type: string
+          description: Always English, even for a system category. A client renders a system category's name from systemKey via its own catalog, falling back to this value when systemKey is null or unrecognized.
+        isSystem:
+          type: boolean
+          description: System categories cannot be deleted, and only their color can be changed.
+        color:
+          type: string
+        systemKey:
+          type: string
+          nullable: true
+          description: Stable language-independent identity (e.g. "groceries", "income"). Null for a user-created category.
+
+    CategoryResponse:
+      type: object
+      required: [category]
+      properties:
+        category:
+          $ref: '#/components/schemas/Category'
+
+    CategoryListResponse:
+      type: object
+      required: [categories]
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+
+    CreateCategoryRequest:
+      type: object
+      required: [name, color]
+      properties:
+        name:
+          type: string
+        color:
+          type: string
+
+    PaymentType:
+      type: string
+      enum: [unspecified, cash, credit, debit, digital_wallet, bank_transfer, crypto, investment, other]
+
+    PaymentMethod:
+      type: object
+      required: [id, name, type, budgetPersonId, color, alias]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/PaymentType'
+          description: Immutable after creation.
+        budgetPersonId:
+          type: integer
+          format: int64
+          description: 0 = unattributed.
+        color:
+          type: string
+        alias:
+          type: string
+          description: User-defined display name; overrides name in the UI when set. Empty = unset.
+
+    PaymentMethodResponse:
+      type: object
+      required: [method]
+      properties:
+        method:
+          $ref: '#/components/schemas/PaymentMethod'
+
+    PaymentMethodListResponse:
+      type: object
+      required: [methods]
+      properties:
+        methods:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentMethod'
+
+    CreatePaymentMethodRequest:
+      type: object
+      required: [name, type, budgetPersonId, color]
+      properties:
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/PaymentType'
+        budgetPersonId:
+          type: integer
+          format: int64
+          description: Required — must not be 0.
+        color:
+          type: string
+
+    UpdatePaymentMethodRequest:
+      type: object
+      required: [name, color]
+      properties:
+        name:
+          type: string
+        color:
+          type: string
+        alias:
+          type: string
+          nullable: true
+          description: Omit or send an empty string to clear the alias.
+
 paths:
   /rest/v1/ping:
     get:
@@ -3570,6 +3685,294 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/categories:
+    get:
+      operationId: listCategories
+      tags: [categories]
+      summary: Global system categories plus the caller's own.
+      description: When budgetProfileId is given, also includes categories referenced by that budget's transactions/fixed expenses, so a collaborator can see categories the owner created. No membership check on budgetProfileId.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: budgetProfileId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Matching categories.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createCategory
+      tags: [categories]
+      summary: Create a category owned by the caller.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRequest'
+      responses:
+        '200':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/categories/{id}:
+    put:
+      operationId: updateCategory
+      tags: [categories]
+      summary: Rename a category or change its color.
+      description: On a system category, only color is applied (name is ignored). On a user category, the caller must own it — another user's category returns 404, not 403, since ownership is enforced entirely by the row simply not matching.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No category with this id owned by the caller.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteCategory
+      tags: [categories]
+      summary: Delete a user-owned category, reassigning its transactions and fixed expenses first.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+        - name: replacementId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The category is a system category, not owned by the caller, or the replacement category isn't accessible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/payment-methods:
+    post:
+      operationId: createPaymentMethod
+      tags: [payment-methods]
+      summary: Create a payment method attributed to a budget person.
+      description: |
+        No membership check against the person's budget — only that
+        budgetPersonId is non-zero. This mirrors a real gap in the Go
+        backend, carried over rather than silently closed in this port;
+        flagged here rather than left to be rediscovered.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentMethodRequest'
+      responses:
+        '200':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethodResponse'
+        '400':
+          description: budgetPersonId was 0.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/payment-methods/{id}:
+    put:
+      operationId: updatePaymentMethod
+      tags: [payment-methods]
+      summary: Rename a payment method, change its color, or set/clear its alias.
+      description: If the method is attributed to a budget person, the caller must be a collaborator or admin on that person's budget; otherwise the caller must be the method's own creator.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePaymentMethodRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethodResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller may not modify this payment method.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deletePaymentMethod
+      tags: [payment-methods]
+      summary: Delete a payment method, reassigning its transactions, savings sources, and fixed expenses first.
+      description: |
+        The caller must be a collaborator or admin on budgetProfileId. Note
+        the final deactivation step is not itself scoped to that profile in
+        the underlying implementation — only the reassignment is. Mirrors a
+        real gap in the Go backend, flagged rather than silently carried.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: replacementId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: budgetProfileId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on budgetProfileId.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: id or replacementId doesn't exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/payment-methods:
+    get:
+      operationId: listPaymentMethods
+      tags: [payment-methods]
+      summary: Every active payment method for anyone on a budget.
+      description: No membership check — mirrors Go, which only requires an authenticated caller.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Matching methods.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethodListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
