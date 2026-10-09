@@ -1142,6 +1142,219 @@ components:
         overviewChartType:
           $ref: '#/components/schemas/ChartType'
 
+    # Structured rather than a plain number, matching this epic's locked wire
+    # decision — existing client money-parsing code expects this shape.
+    Money:
+      type: object
+      required: [units, nanos, currency]
+      properties:
+        units:
+          type: integer
+          format: int64
+        nanos:
+          type: integer
+          format: int32
+        currency:
+          type: string
+          example: USD
+
+    IncomeType:
+      type: string
+      enum: [salary, hourly, freelance, contractor, investment, interest, one_time, gift, other]
+
+    RecurringFrequency:
+      type: string
+      enum: [one_off, weekly, bi_weekly, monthly, yearly]
+
+    IncomeSource:
+      type: object
+      required: [id, budgetProfileId, name, incomeType, defaultAmount, recurring, budgetPersonId, paymentFrequency, beforeTax]
+      properties:
+        id:
+          type: integer
+          format: int64
+        budgetProfileId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        incomeType:
+          $ref: '#/components/schemas/IncomeType'
+        defaultAmount:
+          $ref: '#/components/schemas/Money'
+        recurring:
+          type: boolean
+        budgetPersonId:
+          type: integer
+          format: int64
+          description: 0 = unattributed.
+        paymentFrequency:
+          $ref: '#/components/schemas/RecurringFrequency'
+        beforeTax:
+          type: boolean
+          description: True = gross income; tax-reserve estimation applies (US only).
+
+    IncomeEntry:
+      type: object
+      required: [id, budgetPeriodId, incomeSourceId, amount, budgetPersonId]
+      properties:
+        id:
+          type: integer
+          format: int64
+        budgetPeriodId:
+          type: string
+          format: uuid
+        incomeSourceId:
+          type: integer
+          format: int64
+          description: 0 = a standalone entry not linked to a source.
+        name:
+          type: string
+          nullable: true
+          description: Denormalized from the source for display.
+        amount:
+          $ref: '#/components/schemas/Money'
+        budgetPersonId:
+          type: integer
+          format: int64
+          description: 0 = unattributed, denormalized from the source.
+
+    SavingsSource:
+      type: object
+      required: [id, budgetProfileId, name, amount, frequency, isTaxReserve, budgetPersonId, paymentDays]
+      properties:
+        id:
+          type: integer
+          format: int64
+        budgetProfileId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        amount:
+          $ref: '#/components/schemas/Money'
+          description: Per-occurrence amount (e.g. $200 per paycheck).
+        frequency:
+          type: string
+          description: How often this saving is made. Derived from paymentDays' length, never set directly.
+        isTaxReserve:
+          type: boolean
+          description: Auto-managed by the system; recalculated whenever income sources change (US only).
+        budgetPersonId:
+          type: integer
+          format: int64
+          description: 0 = unattributed.
+        federalAmount:
+          $ref: '#/components/schemas/Money'
+          description: Monthly federal tax component. Tax-reserve rows only.
+        stateAmount:
+          $ref: '#/components/schemas/Money'
+          description: Monthly state tax component. Tax-reserve rows only.
+        paymentMethodId:
+          type: string
+          format: uuid
+          nullable: true
+        paymentDays:
+          type: array
+          items:
+            type: integer
+          description: Day-of-month for each scheduled transfer. Count encodes frequency (1=monthly, 2=bi-weekly, 4=weekly).
+
+    AddIncomeSourceRequest:
+      type: object
+      required: [name, incomeType, defaultAmount, recurring, paymentFrequency, beforeTax]
+      properties:
+        name:
+          type: string
+        incomeType:
+          $ref: '#/components/schemas/IncomeType'
+        defaultAmount:
+          $ref: '#/components/schemas/Money'
+        recurring:
+          type: boolean
+        budgetPersonId:
+          type: integer
+          format: int64
+          nullable: true
+        paymentFrequency:
+          $ref: '#/components/schemas/RecurringFrequency'
+        beforeTax:
+          type: boolean
+
+    IncomeSourceResponse:
+      type: object
+      required: [source]
+      properties:
+        source:
+          $ref: '#/components/schemas/IncomeSource'
+
+    IncomeSourceListResponse:
+      type: object
+      required: [sources]
+      properties:
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/IncomeSource'
+
+    IncomeEntryListResponse:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/IncomeEntry'
+
+    UpdateIncomeEntryRequest:
+      type: object
+      required: [amount]
+      description: Only the amount is editable per period; source metadata is the source of truth.
+      properties:
+        amount:
+          $ref: '#/components/schemas/Money'
+
+    IncomeEntryResponse:
+      type: object
+      required: [entry]
+      properties:
+        entry:
+          $ref: '#/components/schemas/IncomeEntry'
+
+    AddSavingsSourceRequest:
+      type: object
+      required: [name, amount, paymentDays]
+      properties:
+        name:
+          type: string
+        amount:
+          $ref: '#/components/schemas/Money'
+        paymentMethodId:
+          type: string
+          format: uuid
+          nullable: true
+        paymentDays:
+          type: array
+          items:
+            type: integer
+          description: Must have exactly 1, 2, or 4 entries.
+
+    SavingsSourceResponse:
+      type: object
+      required: [source]
+      properties:
+        source:
+          $ref: '#/components/schemas/SavingsSource'
+
+    SavingsSourceListResponse:
+      type: object
+      required: [sources]
+      properties:
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/SavingsSource'
+
 paths:
   /rest/v1/ping:
     get:
@@ -2926,6 +3139,433 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           description: The caller is not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/income-sources:
+    post:
+      operationId: addIncomeSource
+      tags: [budgets]
+      summary: Add a recurring income definition to a budget.
+      description: Admin or collaborator. Free tier caps a budget at 2 income sources per person.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddIncomeSourceRequest'
+      responses:
+        '200':
+          description: Added.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomeSourceResponse'
+        '400':
+          description: Free-tier limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listIncomeSources
+      tags: [budgets]
+      summary: Every income source on a budget.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Matching sources.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomeSourceListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/income-sources/{sourceId}:
+    put:
+      operationId: updateIncomeSource
+      tags: [budgets]
+      summary: Replace an income source's fields.
+      description: Admin or collaborator. Full replace — every field is overwritten, not merged.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: sourceId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddIncomeSourceRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomeSourceResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteIncomeSource
+      tags: [budgets]
+      summary: Remove an income source.
+      description: Admin or collaborator.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: sourceId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/savings-sources:
+    post:
+      operationId: addSavingsSource
+      tags: [budgets]
+      summary: Add a planned savings allocation to a budget.
+      description: Admin or collaborator. budgetPersonId is inferred from paymentMethodId when one is given, never set directly.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddSavingsSourceRequest'
+      responses:
+        '200':
+          description: Added.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavingsSourceResponse'
+        '400':
+          description: paymentDays did not have exactly 1, 2, or 4 entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: paymentMethodId doesn't exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listSavingsSources
+      tags: [budgets]
+      summary: Every savings source on a budget.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Matching sources.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavingsSourceListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/savings-sources/{sourceId}:
+    put:
+      operationId: updateSavingsSource
+      tags: [budgets]
+      summary: Replace a savings source's fields.
+      description: Admin or collaborator. Omitting paymentDays writes an empty frequency rather than preserving the existing one — a known quirk mirrored from the Go backend, not fixed here.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: sourceId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddSavingsSourceRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavingsSourceResponse'
+        '400':
+          description: paymentDays was present but did not have exactly 1, 2, or 4 entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No savings source with this id, or paymentMethodId doesn't exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteSavingsSource
+      tags: [budgets]
+      summary: Remove a savings source.
+      description: Admin or collaborator.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: sourceId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No savings source with this id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budget-periods/{id}/income-entries:
+    get:
+      operationId: listIncomeEntries
+      tags: [budgets]
+      summary: Every income entry recorded for a period.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Matching entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomeEntryListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this period's budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budget-periods/{id}/income-entries/{entryId}:
+    put:
+      operationId: updateIncomeEntry
+      tags: [budgets]
+      summary: Edit an income entry's amount for this period.
+      description: Admin or collaborator, and the period must not be archived — checked in that order, so a non-collaborator on an archived period still sees the archived error.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateIncomeEntryRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomeEntryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The period is archived, or the caller is not a collaborator or admin.
           content:
             application/json:
               schema:
