@@ -1863,6 +1863,160 @@ components:
           $ref: '#/components/schemas/Transaction'
           description: The original purchase, now excluded and linked via installmentFixedExpenseId.
 
+    ExpenseAllocation:
+      type: object
+      required: [id, budgetProfileId, categoryId, budgetPersonId, plannedAmount]
+      properties:
+        id:
+          type: integer
+          format: int64
+        budgetProfileId:
+          type: string
+          format: uuid
+        categoryId:
+          type: integer
+          format: int32
+        budgetPersonId:
+          type: integer
+          format: int64
+          description: 0 = unattributed.
+        plannedAmount:
+          $ref: '#/components/schemas/Money'
+
+    ExpenseAllocationResponse:
+      type: object
+      required: [allocation]
+      properties:
+        allocation:
+          $ref: '#/components/schemas/ExpenseAllocation'
+
+    ExpenseAllocationListResponse:
+      type: object
+      required: [allocations]
+      properties:
+        allocations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseAllocation'
+
+    UpsertExpenseAllocationRequest:
+      type: object
+      required: [categoryId, budgetPersonId, plannedAmount]
+      description: Inserts or, on a (budgetProfileId, categoryId, budgetPersonId) collision, overwrites plannedAmount — one call does both.
+      properties:
+        categoryId:
+          type: integer
+          format: int32
+        budgetPersonId:
+          type: integer
+          format: int64
+          description: 0 = unattributed.
+        plannedAmount:
+          $ref: '#/components/schemas/Money'
+
+    PersonExpenseSummary:
+      type: object
+      required: [budgetPersonId, plannedTotal, actualTotal]
+      properties:
+        budgetPersonId:
+          type: integer
+          format: int64
+        plannedTotal:
+          $ref: '#/components/schemas/Money'
+        actualTotal:
+          $ref: '#/components/schemas/Money'
+
+    CategoryExpenseSummary:
+      type: object
+      required: [categoryId, plannedTotal, isOver, personBreakdowns]
+      description: actualTotal and isOver are populated on overviewCategories rows only — planCategories rows are planned-side only, matching the Expense Plan tab which never shows actuals.
+      properties:
+        categoryId:
+          type: integer
+          format: int32
+        plannedTotal:
+          $ref: '#/components/schemas/Money'
+        actualTotal:
+          $ref: '#/components/schemas/Money'
+          nullable: true
+        isOver:
+          type: boolean
+          description: actualTotal > plannedTotal. Always false on planCategories rows.
+        personBreakdowns:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonExpenseSummary'
+        notDuePlannedTotal:
+          $ref: '#/components/schemas/Money'
+          nullable: true
+          description: Fixed expenses templated for this category but NOT due this period. Deliberately excluded from plannedTotal and every aggregate — an obligation that isn't due yet isn't owed against this period. Set on planCategories rows only; null when nothing is pending.
+        nextDueDate:
+          type: string
+          format: date
+          nullable: true
+          description: Earliest next due date across the templates behind notDuePlannedTotal. Null when that amount is null.
+
+    GetExpenseSummaryResponse:
+      type: object
+      required: [
+        incomeFromSources, incomeFromEntries, totalCommitted, totalPlanned, totalActual,
+        uncategorizedActual, totalOverBudget, totalUnplanned, remainderPlan, remainderActual,
+        remainderPlanned, planCategories, overviewCategories, fixedActualTotal, variableActualTotal,
+        overBudgetTransactionIds,
+      ]
+      properties:
+        incomeFromSources:
+          $ref: '#/components/schemas/Money'
+          description: Sum of IncomeSource.defaultAmount, profile-wide — the Expense Plan tab's income.
+        incomeFromEntries:
+          $ref: '#/components/schemas/Money'
+          description: Sum of IncomeEntry.amount for this period — the Expense Overview tab's income.
+        totalCommitted:
+          $ref: '#/components/schemas/Money'
+          description: Sum of plannedTotal over planCategories — the Expense Plan tab's "committed".
+        totalPlanned:
+          $ref: '#/components/schemas/Money'
+          description: Sum of plannedTotal over overviewCategories — the Expense Overview tab's "planned". Neither total counts a Fixed expense that isn't due this period.
+        totalActual:
+          $ref: '#/components/schemas/Money'
+        uncategorizedActual:
+          $ref: '#/components/schemas/Money'
+        totalOverBudget:
+          $ref: '#/components/schemas/Money'
+        totalUnplanned:
+          $ref: '#/components/schemas/Money'
+          description: uncategorizedActual + actual spend in categories with no plan.
+        remainderPlan:
+          $ref: '#/components/schemas/Money'
+          description: incomeFromSources - totalCommitted.
+        remainderActual:
+          $ref: '#/components/schemas/Money'
+          description: incomeFromEntries - totalActual.
+        remainderPlanned:
+          $ref: '#/components/schemas/Money'
+          description: incomeFromEntries - totalPlanned.
+        planCategories:
+          type: array
+          description: Categories with a plan, due this period, or templated; sorted by plannedTotal descending.
+          items:
+            $ref: '#/components/schemas/CategoryExpenseSummary'
+        overviewCategories:
+          type: array
+          description: Categories with a plan OR actual spend; sorted by actualTotal descending.
+          items:
+            $ref: '#/components/schemas/CategoryExpenseSummary'
+        fixedActualTotal:
+          $ref: '#/components/schemas/Money'
+          description: Paid Fixed transactions only — an unpaid one is not yet spend. fixedActualTotal + variableActualTotal == totalActual always.
+        variableActualTotal:
+          $ref: '#/components/schemas/Money'
+        overBudgetTransactionIds:
+          type: array
+          description: Variable transactions that pushed their category past its combined plan, for the Transactions tab's "Exceeded only" filter — walked chronologically per category, flagged from the point the running total first crosses the plan onward, not every transaction in an over-budget category.
+          items:
+            type: string
+            format: uuid
+
 paths:
   /rest/v1/ping:
     get:
@@ -4945,6 +5099,162 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           description: The caller is not a collaborator or admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/expense-allocations:
+    get:
+      operationId: listExpenseAllocations
+      tags: [budgets]
+      summary: Every planned per-category, per-person spending amount on a budget.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Matching allocations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseAllocationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: upsertExpenseAllocation
+      tags: [budgets]
+      summary: Set a category's planned spending amount, for everyone or for one person.
+      description: Admin or collaborator. Inserts a new row or overwrites an existing one's plannedAmount on a (categoryId, budgetPersonId) collision — one call does both, matching the database's own ON CONFLICT upsert.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertExpenseAllocationRequest'
+      responses:
+        '200':
+          description: Upserted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseAllocationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/expense-allocations/{allocationId}:
+    delete:
+      operationId: deleteExpenseAllocation
+      tags: [budgets]
+      summary: Remove a planned spending amount.
+      description: Admin or collaborator. A no-op, not a 404, when allocationId doesn't exist or belongs to a different budget — mirrors the backend's own bare DELETE exactly.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: allocationId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: Deleted (or already absent).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budget-periods/{id}/expense-summary:
+    get:
+      operationId: getExpenseSummary
+      tags: [budgets]
+      summary: The server-computed planned/actual/remainder totals for the Expense Plan and Expense Overview tabs.
+      description: |
+        Member only. Computed fresh on every call (no caching/storage), so it
+        reflects the current state of transactions/allocations/savings/fixed
+        expenses/income exactly, including anything just manually added.
+        When focusedView is true, every total is restricted to the caller's
+        own person (by payment-method attribution) plus unattributed rows —
+        never another member's, even on the same budget and category.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: focusedView
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: The computed summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetExpenseSummaryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this period's budget.
           content:
             application/json:
               schema:
