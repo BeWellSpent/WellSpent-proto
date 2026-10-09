@@ -1901,7 +1901,7 @@ components:
 
     UpsertExpenseAllocationRequest:
       type: object
-      required: [categoryId, budgetPersonId, plannedAmount]
+      required: [categoryId, plannedAmount]
       description: Inserts or, on a (budgetProfileId, categoryId, budgetPersonId) collision, overwrites plannedAmount — one call does both.
       properties:
         categoryId:
@@ -1910,7 +1910,8 @@ components:
         budgetPersonId:
           type: integer
           format: int64
-          description: 0 = unattributed.
+          nullable: true
+          description: Null = unattributed, matching every other request body in this contract (e.g. addIncomeSource). The 0-sentinel on ExpenseAllocation.budgetPersonId is a response-only convention, matching the wire exactly.
         plannedAmount:
           $ref: '#/components/schemas/Money'
 
