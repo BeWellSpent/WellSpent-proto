@@ -4720,8 +4720,8 @@ paths:
     get:
       operationId: listFixedExpenses
       tags: [budgets]
-      summary: Every fixed-expense template on a budget, active and inactive.
-      description: nextDueDate and paymentsMade are computed server-side as of today, never stored.
+      summary: Every active fixed-expense template on a budget.
+      description: A deactivated template (e.g. after deleteFixedExpense) is never returned. nextDueDate and paymentsMade are computed server-side as of today, never stored.
       security:
         - bearerAuth: []
       parameters:
