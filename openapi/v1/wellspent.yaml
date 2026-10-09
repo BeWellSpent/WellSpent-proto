@@ -1652,6 +1652,217 @@ components:
         excluded:
           type: boolean
 
+    FrequencyUnit:
+      type: string
+      enum: [month, week]
+
+    FixedExpense:
+      type: object
+      required: [id, budgetProfileId, name, plannedAmount, categoryId, dayOfMonth, isActive, intervalMonths, nextDueDate, frequencyUnit, intervalWeeks, dayOfWeek, totalPayments, isInstallmentPlan, paymentsMade]
+      properties:
+        id:
+          type: string
+          format: uuid
+        budgetProfileId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        plannedAmount:
+          $ref: '#/components/schemas/Money'
+        categoryId:
+          type: integer
+          format: int32
+          description: 0 = unset.
+        paymentMethodId:
+          type: string
+          format: uuid
+          nullable: true
+        dayOfMonth:
+          type: integer
+          format: int32
+          description: 1-31, clamped to the month's last day when spawning. Meaningful when frequencyUnit is month; kept in sync with anchorDate when one is set.
+        isActive:
+          type: boolean
+        intervalMonths:
+          type: integer
+          format: int32
+          description: 1 = every month (default), 3 = quarterly, 12 = yearly, etc. Applies when frequencyUnit is month.
+        nextDueDate:
+          type: string
+          format: date
+          description: Server-computed — the next date on or after today this expense is due.
+        anchorDate:
+          type: string
+          format: date
+          nullable: true
+          description: Explicit interval anchor + scheduling day, overriding the template's creation date when set.
+        frequencyUnit:
+          $ref: '#/components/schemas/FrequencyUnit'
+        intervalWeeks:
+          type: integer
+          format: int32
+          description: Applies when frequencyUnit is week.
+        dayOfWeek:
+          type: integer
+          format: int32
+          description: 1=Monday..7=Sunday (ISO 8601). Applies when frequencyUnit is week.
+        endDate:
+          type: string
+          format: date
+          nullable: true
+          description: When set, the expense auto-deactivates once a period starts after this date.
+        totalPayments:
+          type: integer
+          format: int32
+          description: 0 = unset. Informational count of the plan's total payments.
+        isInstallmentPlan:
+          type: boolean
+          description: True when created by createInstallmentPlan — excluded from Plaid review auto-matching, since a card installment settles inside the card's own balance and never appears on a bank feed as its own line item.
+        paymentsMade:
+          type: integer
+          format: int32
+          description: Server-computed — how many of totalPayments have come due as of today, clamped to [0, totalPayments].
+
+    FixedExpenseResponse:
+      type: object
+      required: [fixedExpense]
+      properties:
+        fixedExpense:
+          $ref: '#/components/schemas/FixedExpense'
+
+    FixedExpenseListResponse:
+      type: object
+      required: [fixedExpenses]
+      properties:
+        fixedExpenses:
+          type: array
+          items:
+            $ref: '#/components/schemas/FixedExpense'
+
+    CreateFixedExpenseRequest:
+      type: object
+      required: [name, plannedAmount, dayOfMonth, intervalMonths, intervalWeeks, dayOfWeek, totalPayments]
+      properties:
+        name:
+          type: string
+        plannedAmount:
+          $ref: '#/components/schemas/Money'
+        categoryId:
+          type: integer
+          format: int32
+          nullable: true
+        paymentMethodId:
+          type: string
+          format: uuid
+          nullable: true
+        dayOfMonth:
+          type: integer
+          format: int32
+        intervalMonths:
+          type: integer
+          format: int32
+        anchorDate:
+          type: string
+          format: date
+          nullable: true
+        frequencyUnit:
+          $ref: '#/components/schemas/FrequencyUnit'
+        intervalWeeks:
+          type: integer
+          format: int32
+        dayOfWeek:
+          type: integer
+          format: int32
+        endDate:
+          type: string
+          format: date
+          nullable: true
+        totalPayments:
+          type: integer
+          format: int32
+
+    CreateFixedExpenseResponse:
+      type: object
+      required: [fixedExpense]
+      description: transaction is set only when creating the template immediately spawned a transaction into the budget's active period (skipped for a future-dated anchor, a WEEK-unit template, or a budget with no active period yet).
+      properties:
+        fixedExpense:
+          $ref: '#/components/schemas/FixedExpense'
+        transaction:
+          $ref: '#/components/schemas/Transaction'
+          nullable: true
+
+    UpdateFixedExpenseRequest:
+      type: object
+      required: [name, plannedAmount, dayOfMonth, intervalMonths, intervalWeeks, dayOfWeek, totalPayments]
+      description: Full replace, same shape as createFixedExpense. Also reconciles the budget's active period (spawns, deletes, or propagates onto its existing transaction) unless frequencyUnit is week.
+      properties:
+        name:
+          type: string
+        plannedAmount:
+          $ref: '#/components/schemas/Money'
+        categoryId:
+          type: integer
+          format: int32
+          nullable: true
+        paymentMethodId:
+          type: string
+          format: uuid
+          nullable: true
+        dayOfMonth:
+          type: integer
+          format: int32
+        intervalMonths:
+          type: integer
+          format: int32
+        anchorDate:
+          type: string
+          format: date
+          nullable: true
+        frequencyUnit:
+          $ref: '#/components/schemas/FrequencyUnit'
+        intervalWeeks:
+          type: integer
+          format: int32
+        dayOfWeek:
+          type: integer
+          format: int32
+        endDate:
+          type: string
+          format: date
+          nullable: true
+        totalPayments:
+          type: integer
+          format: int32
+
+    CreateInstallmentPlanRequest:
+      type: object
+      required: [firstPaymentDate, totalPayments]
+      properties:
+        firstPaymentDate:
+          type: string
+          format: date
+        totalPayments:
+          type: integer
+          format: int32
+          minimum: 2
+        endDate:
+          type: string
+          format: date
+          nullable: true
+          description: Defaults to firstPaymentDate plus one month per remaining payment when omitted.
+
+    CreateInstallmentPlanResponse:
+      type: object
+      required: [fixedExpense, transaction]
+      properties:
+        fixedExpense:
+          $ref: '#/components/schemas/FixedExpense'
+        transaction:
+          $ref: '#/components/schemas/Transaction'
+          description: The original purchase, now excluded and linked via installmentFixedExpenseId.
+
 paths:
   /rest/v1/ping:
     get:
@@ -4445,6 +4656,295 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           description: The period is archived, or the caller is not a collaborator or admin.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/fixed-expenses:
+    post:
+      operationId: createFixedExpense
+      tags: [budgets]
+      summary: Create a profile-level recurring fixed-expense template.
+      description: |
+        Admin or collaborator. If the budget has an active period and the
+        template is due this month, a transaction is spawned into it
+        immediately (see createFixedExpenseResponse's transaction field). A
+        WEEK-unit template instead spawns one transaction per due week
+        already inside the active period.
+
+        createFixedExpenseFromTransaction (Go's companion RPC for converting
+        an existing Plaid-imported transaction straight into a template) is
+        deliberately not part of this contract yet — it drives the
+        TransactionReview confirm flow, which hasn't been ported (planned for
+        a later batch of the backend rewrite). Until then that conversion
+        path stays on the Go/ConnectRPC backend.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFixedExpenseRequest'
+      responses:
+        '200':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateFixedExpenseResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listFixedExpenses
+      tags: [budgets]
+      summary: Every fixed-expense template on a budget, active and inactive.
+      description: nextDueDate and paymentsMade are computed server-side as of today, never stored.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Matching templates.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixedExpenseListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/fixed-expenses/{feId}:
+    put:
+      operationId: updateFixedExpense
+      tags: [budgets]
+      summary: Replace a fixed-expense template's fields.
+      description: |
+        Admin or collaborator. Full replace. Unless frequencyUnit is week,
+        also reconciles the budget's active period: spawns a transaction if
+        the edit made the expense newly due, deletes the existing one if it's
+        no longer due, or propagates the edit onto it — a narrower set of
+        fields (name/categoryId/paymentMethodId only) if that transaction is
+        already paid.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: feId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFixedExpenseRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixedExpenseResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteFixedExpense
+      tags: [budgets]
+      summary: Deactivate a fixed-expense template.
+      description: Admin or collaborator. Deactivates rather than hard-deletes, matching every other removal of a fixed expense. Also best-effort deletes any unpaid transaction it spawned into the budget's active period.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: feId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deactivated.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on this budget, or feId belongs to a different budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/transactions/{id}/installment-plan:
+    post:
+      operationId: createInstallmentPlan
+      tags: [transactions]
+      summary: Split a variable spend into card installments.
+      description: |
+        Admin or collaborator on the transaction's budget. Scoped by budget
+        profile, not by period — deliberately allowed on an archived period,
+        since realising later that a purchase was financed is the normal
+        case. The purchase itself becomes excluded and linked
+        (installmentFixedExpenseId) to a new fixed-expense template carrying
+        the amount split evenly across totalPayments. Rejects a transaction
+        that is already Fixed-type, already an installment plan, or a
+        received (negative) amount.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: budgetPeriodId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInstallmentPlanRequest'
+      responses:
+        '200':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateInstallmentPlanResponse'
+        '400':
+          description: Fewer than 2 payments, an end date before the first payment, an already-converted transaction, a Fixed-type transaction, or a received (negative) amount.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: The transaction does not belong to budgetPeriodId.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteInstallmentPlan
+      tags: [transactions]
+      summary: Undo an installment split — the plan is removed and the original purchase counts again.
+      description: |
+        Admin or collaborator. Refused once any spawned payment has been
+        marked paid: that is real recorded spend, and losing it to an undo is
+        worse than requiring it be unmarked first.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: budgetPeriodId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Removed. Returns the original transaction, un-excluded and unlinked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+        '400':
+          description: The transaction is not an installment plan, or a spawned payment is already marked paid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on this budget.
           content:
             application/json:
               schema:
