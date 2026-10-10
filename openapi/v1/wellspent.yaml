@@ -2130,6 +2130,120 @@ components:
           $ref: '#/components/schemas/Transaction'
           description: The source transaction. Excluded and linked via the match, unless no transaction was spawned yet (e.g. a future anchorDate) — then unchanged.
 
+    PlaidConnection:
+      type: object
+      required: [id, institutionId, institutionName, status, budgetProfileId, ownerName, isOwner, syncEnabled]
+      properties:
+        id:
+          type: string
+          format: uuid
+        institutionId:
+          type: string
+        institutionName:
+          type: string
+        status:
+          type: string
+          enum: [active, disconnected, error]
+        lastSyncedAt:
+          type: string
+          format: date-time
+          nullable: true
+        budgetProfileId:
+          type: string
+          format: uuid
+        ownerName:
+          type: string
+          description: Display name of the budget member who linked this connection.
+        isOwner:
+          type: boolean
+          description: True when the caller linked this connection. Only the owner may disconnect it, manage its accounts, or resync it.
+        syncEnabled:
+          type: boolean
+          description: False when the sync job skips this connection on every run because its owner isn't on a paid plan. Distinct from status, which reports the health of the link itself.
+        resyncAvailableAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the owner may next request a manual resync. Absent when one is allowed right now.
+
+    PlaidConnectionResponse:
+      type: object
+      required: [connection]
+      properties:
+        connection:
+          $ref: '#/components/schemas/PlaidConnection'
+
+    BudgetSyncWarning:
+      type: object
+      required: [budgetProfileId, budgetName, memberName, connectionCount, isCurrentUser]
+      properties:
+        budgetProfileId:
+          type: string
+          format: uuid
+        budgetName:
+          type: string
+        memberName:
+          type: string
+          description: Display name of the member whose connections are being skipped.
+        connectionCount:
+          type: integer
+          format: int32
+        isCurrentUser:
+          type: boolean
+          description: True when the member is the caller.
+
+    GetPlaidConnectionsResponse:
+      type: object
+      required: [connections, warnings]
+      properties:
+        connections:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlaidConnection'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/BudgetSyncWarning'
+          description: Budgets the caller belongs to with connections that will never sync because their owner isn't on a paid plan. Empty when nothing is affected.
+
+    CreateLinkTokenRequest:
+      type: object
+      required: [budgetProfileId]
+      properties:
+        budgetProfileId:
+          type: string
+          format: uuid
+          description: Budget profile that imported transactions will be written to.
+        connectionId:
+          type: string
+          format: uuid
+          nullable: true
+          description: If set, requests update mode (account selection) for this existing connection instead of a fresh connect flow. The caller must own the connection.
+        redirectUri:
+          type: string
+          nullable: true
+          description: Must be a Plaid-dashboard-registered redirect URI. Only needed by native clients so OAuth-based institutions can hand control back to the app.
+
+    CreateLinkTokenResponse:
+      type: object
+      required: [linkToken, expiration]
+      properties:
+        linkToken:
+          type: string
+        expiration:
+          type: string
+          description: ISO 8601 expiration time of the link token.
+
+    ExchangePublicTokenRequest:
+      type: object
+      required: [publicToken, budgetProfileId]
+      properties:
+        publicToken:
+          type: string
+        budgetProfileId:
+          type: string
+          format: uuid
+
 paths:
   /rest/v1/ping:
     get:
@@ -5607,6 +5721,245 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           description: The caller is not a member of this review's budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/plaid/link-token:
+    post:
+      operationId: createLinkToken
+      tags: [plaid]
+      summary: Create a Plaid Link token.
+      description: |
+        US residents on a Pro/Lifetime plan only. The caller must own or
+        belong to budgetProfileId. Pass connectionId to request update mode
+        (account selection) for an existing connection instead of a fresh
+        connect flow — the caller must own that connection.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLinkTokenRequest'
+      responses:
+        '200':
+          description: Link token created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateLinkTokenResponse'
+        '400':
+          description: The caller is on the free plan — Plaid bank sync requires Pro/Lifetime.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not a US resident, not a member of budgetProfileId, or (when connectionId is set) does not own that connection.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/plaid/connections:
+    get:
+      operationId: getPlaidConnections
+      tags: [plaid]
+      summary: List Plaid connections.
+      description: |
+        Without budgetProfileId, returns only the caller's own connections
+        across every budget. With it, returns every member's live
+        connections on that budget (the caller must own or belong to it),
+        each carrying who linked it and whether the sync job is actually
+        picking it up.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: budgetProfileId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Matching connections.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetPlaidConnectionsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not a US resident, or not a member of budgetProfileId.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: exchangePublicToken
+      tags: [plaid]
+      summary: Exchange a Link public token for a permanent connection.
+      description: |
+        US residents on a Pro/Lifetime plan only. The caller must own or
+        belong to budgetProfileId. Creates one payment method per linked
+        account and triggers an immediate background sync.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExchangePublicTokenRequest'
+      responses:
+        '200':
+          description: Connected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaidConnectionResponse'
+        '400':
+          description: The caller is on the free plan — Plaid bank sync requires Pro/Lifetime.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not a US resident, or not a member of budgetProfileId.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/plaid/connections/{id}:
+    delete:
+      operationId: disconnectPlaid
+      tags: [plaid]
+      summary: Disconnect a Plaid connection.
+      description: Only the member who linked it. Best-effort notifies Plaid; the local connection is always marked disconnected regardless.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Disconnected.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not a US resident, or the caller did not link this connection.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/plaid/connections/{id}/refresh-accounts:
+    post:
+      operationId: refreshPlaidAccounts
+      tags: [plaid]
+      summary: Re-fetch an existing connection's account list from Plaid.
+      description: |
+        Only the member who linked it. Call after a Link "update mode"
+        session (e.g. account selection) completes, since update mode
+        doesn't return a public_token to exchange. Creates a payment method
+        for any newly-added account and deactivates any existing one whose
+        account is no longer present.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Refreshed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaidConnectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not a US resident, or the caller did not link this connection.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/plaid/connections/{id}/resync:
+    post:
+      operationId: resyncPlaidConnection
+      tags: [plaid]
+      summary: Clear a connection's sync cursor and replay its full transaction history.
+      description: |
+        Only the member who linked it, and only on a paid plan. Capped at
+        once every 24 hours per connection.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Resync started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaidConnectionResponse'
+        '400':
+          description: This connection is disconnected, the caller is on the free plan, or it was already resynced within the last 24 hours.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not a US resident, or the caller did not link this connection.
           content:
             application/json:
               schema:
