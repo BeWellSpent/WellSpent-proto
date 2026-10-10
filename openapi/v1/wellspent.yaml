@@ -2018,6 +2018,118 @@ components:
             type: string
             format: uuid
 
+    TransactionReview:
+      type: object
+      required: [id, budgetPeriodId, transactionId, matchedTransactionId, matchScore, status, createdAt, transactionAmount, transactionPersonId, matchedTransactionPersonId]
+      description: fixedExpenseId/fixedExpenseName are deliberately absent — deprecated on the wire, superseded by matchedTransactionId/matchedTransactionName, no longer populated server-side.
+      properties:
+        id:
+          type: string
+          format: uuid
+        budgetPeriodId:
+          type: string
+          format: uuid
+        transactionId:
+          type: string
+          format: uuid
+          description: The imported/flagged variable transaction.
+        matchedTransactionId:
+          type: string
+          format: uuid
+          description: The Fixed-type transaction (spawned from a FixedExpense template or a SavingsSource) this one duplicates.
+        matchScore:
+          type: number
+          format: double
+        status:
+          type: string
+          enum: [pending, confirmed, dismissed]
+        createdAt:
+          type: string
+          format: date-time
+        transactionName:
+          type: string
+          nullable: true
+        transactionAmount:
+          $ref: '#/components/schemas/Money'
+        matchedTransactionName:
+          type: string
+          nullable: true
+        transactionPersonId:
+          type: integer
+          format: int64
+          description: Resolved owner (via payment method) of the imported transaction's side. 0 = unattributed.
+        matchedTransactionPersonId:
+          type: integer
+          format: int64
+          description: 0 = unattributed.
+
+    TransactionReviewResponse:
+      type: object
+      required: [review]
+      properties:
+        review:
+          $ref: '#/components/schemas/TransactionReview'
+
+    TransactionReviewListResponse:
+      type: object
+      required: [reviews]
+      properties:
+        reviews:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionReview'
+
+    MarkTransactionForReviewRequest:
+      type: object
+      required: [matchedTransactionId, budgetProfileId]
+      description: fixedExpenseId is deliberately absent — deprecated, superseded by matchedTransactionId, no longer read server-side.
+      properties:
+        matchedTransactionId:
+          type: string
+          format: uuid
+          description: The Fixed-type transaction (fixed-expense- or savings-derived) this one duplicates.
+        budgetProfileId:
+          type: string
+          format: uuid
+
+    CreateFixedExpenseFromTransactionRequest:
+      type: object
+      required: [intervalMonths, intervalWeeks, dayOfWeek]
+      properties:
+        name:
+          type: string
+          nullable: true
+          description: Optional rename; null/empty keeps the transaction's own name.
+        anchorDate:
+          type: string
+          format: date
+          nullable: true
+          description: Interval anchor + scheduling day.
+        frequencyUnit:
+          $ref: '#/components/schemas/FrequencyUnit'
+        intervalMonths:
+          type: integer
+          format: int32
+          description: Applies when frequencyUnit is month.
+        intervalWeeks:
+          type: integer
+          format: int32
+          description: Applies when frequencyUnit is week.
+        dayOfWeek:
+          type: integer
+          format: int32
+          description: 1=Monday..7=Sunday. Applies when frequencyUnit is week.
+
+    CreateFixedExpenseFromTransactionResponse:
+      type: object
+      required: [fixedExpense, transaction]
+      properties:
+        fixedExpense:
+          $ref: '#/components/schemas/FixedExpense'
+        transaction:
+          $ref: '#/components/schemas/Transaction'
+          description: The source transaction. Excluded and linked via the match, unless no transaction was spawned yet (e.g. a future anchorDate) — then unchanged.
+
 paths:
   /rest/v1/ping:
     get:
@@ -5256,6 +5368,245 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           description: The caller is not a member of this period's budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/transaction-reviews:
+    get:
+      operationId: listTransactionReviews
+      tags: [budgets]
+      summary: Pending and confirmed Plaid-match reviews for a budget (never dismissed).
+      description: |
+        Member only, Forbidden-collapsing (never 404) — mirrors
+        TransactionService's own member check specifically, distinct from
+        other member checks elsewhere in this contract that propagate a
+        non-member's lookup failure as 404.
+
+        Confirmed reviews are returned for every period, archived included
+        — they are what a client uses to hide the imported duplicate and
+        draw the link on the fixed row, so an archived period showing an
+        unlinked duplicate and a chevron-less paid row would be wrong.
+        Pending reviews are live-period only, since an archived period is
+        read-only and there is nothing to do with one there.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Matching reviews.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionReviewListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/transactions/{id}/flag-for-review:
+    post:
+      operationId: markTransactionForReview
+      tags: [transactions]
+      summary: Manually flag a variable transaction as a likely duplicate of a Fixed-type transaction.
+      description: |
+        Admin or collaborator on budgetProfileId, checked first against the
+        value the caller supplies — before the transaction/matchedTransactionId
+        are verified to actually belong to it. matchedTransactionId may be any
+        Fixed-type transaction in the same period as id, whether spawned from
+        a FixedExpense template or a SavingsSource.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkTransactionForReviewRequest'
+      responses:
+        '200':
+          description: Queued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionReviewResponse'
+        '400':
+          description: id is not a variable transaction, or matchedTransactionId is not a Fixed-type transaction.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on budgetProfileId, or id/matchedTransactionId belongs to a different budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/transactions/{id}/fixed-expense:
+    post:
+      operationId: createFixedExpenseFromTransaction
+      tags: [transactions]
+      summary: Turn an existing variable transaction into a recurring FixedExpense template, auto-confirming the match.
+      description: |
+        Admin or collaborator. Rejects a Fixed-type transaction, a received
+        (non-positive) amount, an archived period, and a transaction already
+        matched to a fixed expense (unless that match was dismissed). On
+        success, runs the exact same confirm path as confirmTransactionReview
+        — the newly spawned transaction is marked paid and this one is
+        excluded and linked — unless the template's own schedule doesn't
+        spawn a transaction into the active period yet (e.g. a future
+        anchorDate), in which case the source transaction is returned
+        unchanged.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: budgetPeriodId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFixedExpenseFromTransactionRequest'
+      responses:
+        '200':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateFixedExpenseFromTransactionResponse'
+        '400':
+          description: id is a Fixed-type transaction, a received (non-positive) amount, the period is archived, or the transaction is already matched to a fixed expense.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a collaborator or admin on this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: id does not belong to budgetPeriodId.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/transaction-reviews/{id}/confirm:
+    post:
+      operationId: confirmTransactionReview
+      tags: [transactions]
+      summary: Confirm a Plaid-match review — marks the matched (fixed) side paid and excludes the imported side.
+      description: |
+        Member only (any role, including Viewer) — mirrors a real Go
+        permissiveness quirk rather than tightening it here. The profile
+        actually acted on is always the one resolved from the review's own
+        period, which is also why this endpoint takes no budgetProfileId:
+        Go's RPC accepts one but never uses it beyond request shape.
+
+        Saves the imported transaction's merchant name as an alias on the
+        matched fixed expense, so future imports of the same merchant
+        auto-confirm. Sums in any other already-confirmed reviews against
+        the same matched transaction (a split payment) before marking it
+        paid.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Confirmed.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this review's budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/transaction-reviews/{id}/dismiss:
+    post:
+      operationId: dismissTransactionReview
+      tags: [transactions]
+      summary: Dismiss a Plaid-match review without touching either transaction it links.
+      description: Member only (any role).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Dismissed.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not a member of this review's budget.
           content:
             application/json:
               schema:
