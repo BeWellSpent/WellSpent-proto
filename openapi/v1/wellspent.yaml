@@ -3580,12 +3580,9 @@ paths:
       summary: Roll the budget forward to its next cycle window.
       description: |
         Admin only. Idempotent — if the current period hasn't ended yet, returns
-        it unchanged rather than creating a second one. This backend's version
-        of this endpoint only creates/archives the period row itself; income
-        pre-fill, fixed-expense spawn, and carryover land in later migration
-        batches (see docs/features/refactor-backend-csharp.md) — the live Go
-        backend is still the one actually running period rollovers in
-        production.
+        it unchanged rather than creating a second one. Spawns fixed-expense
+        transactions and recalculates the tax reserve the same way the live
+        Go backend's period rollover does (see docs/features/refactor-backend-csharp.md).
       security:
         - bearerAuth: []
       parameters:
@@ -5060,10 +5057,7 @@ paths:
 
         createFixedExpenseFromTransaction (Go's companion RPC for converting
         an existing Plaid-imported transaction straight into a template) is
-        deliberately not part of this contract yet — it drives the
-        TransactionReview confirm flow, which hasn't been ported (planned for
-        a later batch of the backend rewrite). Until then that conversion
-        path stays on the Go/ConnectRPC backend.
+        part of this contract too — see /rest/v1/transactions/{id}/fixed-expense.
       security:
         - bearerAuth: []
       parameters:
