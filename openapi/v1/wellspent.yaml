@@ -1164,7 +1164,8 @@ components:
 
     RecurringFrequency:
       type: string
-      enum: [one_off, weekly, bi_weekly, monthly, yearly]
+      enum: [unspecified, one_off, weekly, bi_weekly, monthly, yearly]
+      description: unspecified appears on a Transaction whose frequency was never set (e.g. a spawned Fixed-expense payment) — every other RecurringFrequency context (IncomeSource, request bodies) always sends a real value.
 
     IncomeSource:
       type: object
