@@ -5097,7 +5097,12 @@ paths:
       operationId: listFixedExpenses
       tags: [budgets]
       summary: Every active fixed-expense template on a budget.
-      description: A deactivated template (e.g. after deleteFixedExpense) is never returned. nextDueDate and paymentsMade are computed server-side as of today, never stored.
+      description: |
+        A deactivated template (e.g. after deleteFixedExpense) is never
+        returned. nextDueDate and paymentsMade are computed server-side as of
+        today, never stored. focusedView restricts to the caller's own
+        person (by payment method attribution) plus unattributed templates —
+        same rule and param shape as listTransactions.
       security:
         - bearerAuth: []
       parameters:
@@ -5107,6 +5112,11 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: focusedView
+          in: query
+          required: false
+          schema:
+            type: boolean
       responses:
         '200':
           description: Matching templates.
