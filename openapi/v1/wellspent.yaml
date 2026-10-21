@@ -137,13 +137,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
-    NotImplemented:
-      description: Mirrors the Go backend's RefreshToken, which also returns Unimplemented — not a gap introduced by the rewrite.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-
   schemas:
     Error:
       type: object
@@ -629,7 +622,7 @@ components:
 
     TokenResponse:
       type: object
-      required: [accessToken, tokenType, expiresIn]
+      required: [accessToken, tokenType, expiresIn, refreshToken]
       properties:
         accessToken:
           type: string
@@ -639,11 +632,14 @@ components:
         expiresIn:
           type: integer
           format: int64
-          description: Seconds until the token expires.
+          description: Seconds until the access token expires. Always 900 (15 minutes) — see refreshToken for session longevity.
+        refreshToken:
+          type: string
+          description: Opaque, device-scoped. Exchange at /auth/refresh-token for a new access token before this one's own (much longer) lifetime ends. Store it; it rotates on every use.
 
     RegisterRequest:
       type: object
-      required: [email, password, firstName, lastName, countryCode, stateCode, language, currency, captchaToken]
+      required: [email, password, firstName, lastName, countryCode, stateCode, language, currency, captchaToken, deviceId]
       properties:
         email:
           type: string
@@ -670,10 +666,13 @@ components:
         captchaToken:
           type: string
           description: Cloudflare Turnstile response token. Only enforced when the server has captcha enforcement enabled.
+        deviceId:
+          type: string
+          description: Client-generated, stable per app install (not a platform identifier like IDFV). Scopes the issued refresh token to this device.
 
     LoginRequest:
       type: object
-      required: [email, password, rememberMe]
+      required: [email, password, rememberMe, deviceId]
       properties:
         email:
           type: string
@@ -682,11 +681,14 @@ components:
           type: string
         rememberMe:
           type: boolean
-          description: true issues a 90-day token; false (default) issues a 24-hour token.
+          description: Governs the refresh token's lifetime, not the access token's (always 900s) — true issues a 90-day refresh token; false (default) issues a 1-day one.
+        deviceId:
+          type: string
+          description: Client-generated, stable per app install. Scopes the issued refresh token to this device — a second login with the same deviceId replaces, rather than adds to, that device's refresh token.
 
     LoginResponse:
       type: object
-      required: [accessToken, tokenType, expiresIn, language, currency]
+      required: [accessToken, tokenType, expiresIn, language, currency, refreshToken]
       properties:
         accessToken:
           type: string
@@ -696,19 +698,48 @@ components:
         expiresIn:
           type: integer
           format: int64
+          description: Seconds until the access token expires. Always 900.
         language:
           type: string
           description: The user's stored locale preference.
         currency:
           type: string
           description: The user's stored currency preference.
+        refreshToken:
+          type: string
+          description: Opaque, device-scoped. Exchange at /auth/refresh-token for a new access token; rotates on every use.
 
     RefreshTokenRequest:
+      type: object
+      required: [refreshToken, deviceId]
+      properties:
+        refreshToken:
+          type: string
+        deviceId:
+          type: string
+          description: Must match the device the refresh token was issued to.
+
+    RefreshTokenResponse:
+      type: object
+      required: [accessToken, expiresIn, refreshToken]
+      properties:
+        accessToken:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+          description: Seconds until the new access token expires. Always 900.
+        refreshToken:
+          type: string
+          description: A freshly rotated refresh token — the one just presented is now revoked. Persist this one in its place.
+
+    LogoutRequest:
       type: object
       required: [refreshToken]
       properties:
         refreshToken:
           type: string
+          description: Revokes exactly this device's refresh token. No bearer token required — presenting a valid refresh token is itself the proof of which session is being closed, and logout must still work with an already-expired access token.
 
     GoogleAuthUrlResponse:
       type: object
@@ -719,7 +750,7 @@ components:
 
     GoogleExchangeRequest:
       type: object
-      required: [code, redirectUri, language, currency]
+      required: [code, redirectUri, language, currency, deviceId]
       properties:
         code:
           type: string
@@ -731,16 +762,20 @@ components:
         currency:
           type: string
           description: Used for new users only.
+        deviceId:
+          type: string
+          description: Client-generated, stable per app install. Scopes the issued refresh token to this device.
 
     OAuthSignInResponse:
       type: object
-      required: [accessToken, expiresIn, isNewUser, language, currency]
+      required: [accessToken, expiresIn, isNewUser, language, currency, refreshToken]
       properties:
         accessToken:
           type: string
         expiresIn:
           type: integer
           format: int64
+          description: Seconds until the access token expires. Always 900.
         isNewUser:
           type: boolean
         language:
@@ -749,17 +784,20 @@ components:
         currency:
           type: string
           description: New user — from the request. Returning user — from their stored profile.
+        refreshToken:
+          type: string
+          description: Opaque, device-scoped, always a 90-day lifetime for both OAuth flows (neither has a "remember me" control). Rotates on every use.
 
     AppleSignInRequest:
       type: object
-      required: [identityToken, authorizationCode, firstName, lastName, language, currency]
+      required: [identityToken, authorizationCode, firstName, lastName, language, currency, deviceId]
       properties:
         identityToken:
           type: string
           description: Apple id_token (RS256 JWT) from ASAuthorizationAppleIDCredential — verified server-side against Apple's JWKS.
         authorizationCode:
           type: string
-          description: One-time code, exchanged server-side for a refresh token so the account can be revoked on deletion.
+          description: One-time code, exchanged server-side for a refresh token so the account can be revoked on deletion. This is Apple's own OAuth refresh token (stored encrypted on oauth_account) — unrelated to this app's session refresh token described elsewhere on this page.
         firstName:
           type: string
           description: Apple supplies the name only on the very first authorization, never again — persisted on first link.
@@ -771,6 +809,9 @@ components:
         currency:
           type: string
           description: Used for new users only — defaults to "USD".
+        deviceId:
+          type: string
+          description: Client-generated, stable per app install. Scopes the issued session refresh token to this device.
 
     VerifyEmailRequest:
       type: object
@@ -2658,11 +2699,17 @@ paths:
     post:
       operationId: logout
       tags: [auth]
-      summary: Stub — JWT is stateless; the client discards its own token.
+      summary: Revoke this device's refresh token.
       security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
       responses:
         '200':
-          description: Always succeeds.
+          description: Always succeeds, whether or not a matching token was found.
         '429':
           $ref: '#/components/responses/RateLimited'
 
@@ -2671,7 +2718,13 @@ paths:
       operationId: refreshToken
       security: []
       tags: [auth]
-      summary: Not implemented — mirrors the Go backend, which also returns Unimplemented here.
+      summary: Exchange a refresh token for a new access token.
+      description: |
+        Rotates on every call: the refresh token returned replaces the one
+        just presented, which is immediately revoked. Presenting an
+        already-revoked refresh token is treated as a sign of theft, not a
+        late retry — it revokes every other active refresh token for that
+        user (all devices), forcing a real re-login everywhere.
       requestBody:
         required: true
         content:
@@ -2679,8 +2732,22 @@ paths:
             schema:
               $ref: '#/components/schemas/RefreshTokenRequest'
       responses:
-        '501':
-          $ref: '#/components/responses/NotImplemented'
+        '200':
+          description: A new access token and a rotated refresh token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenResponse'
+        '401':
+          description: The refresh token is unknown, expired, revoked, or doesn't match the given device.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /rest/v1/auth/google/url:
     get:
