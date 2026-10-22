@@ -186,22 +186,32 @@ components:
         then the most recently created. `info` and `warning` are dismissable
         per device; `critical` is not.
 
+    LocalizedText:
+      type: object
+      additionalProperties:
+        type: string
+        maxLength: 300
+      description: |
+        Keyed by BCP 47 locale code (`en`, `es`, …) — one entry per language
+        an operator wrote text for. `en` is always present; a client renders
+        its own locale's entry and falls back to `en` when its own key is
+        missing, rather than a dedicated empty-string sentinel per locale.
+        Adding a language is a data change now, not a schema change.
+      example:
+        en: Scheduled maintenance tonight 10pm-midnight ET.
+        es: Mantenimiento programado esta noche de 10pm a medianoche ET.
+
     StatusBanner:
       type: object
-      required: [id, severity, messageEn, messageEs, startsAt, endsAt, createdAt]
+      required: [id, severity, message, startsAt, endsAt, createdAt]
       properties:
         id:
           type: string
           format: uuid
         severity:
           $ref: '#/components/schemas/StatusBannerSeverity'
-        messageEn:
-          type: string
-          maxLength: 300
-        messageEs:
-          type: string
-          maxLength: 300
-          description: Empty means clients fall back to the English text.
+        message:
+          $ref: '#/components/schemas/LocalizedText'
         startsAt:
           type: string
           format: date-time
@@ -233,17 +243,12 @@ components:
 
     ChangelogItem:
       type: object
-      required: [changeType, summaryEn, summaryEs]
+      required: [changeType, summary]
       properties:
         changeType:
           $ref: '#/components/schemas/ChangeType'
-        summaryEn:
-          type: string
-          maxLength: 300
-        summaryEs:
-          type: string
-          maxLength: 300
-          description: Empty means clients fall back to the English text.
+        summary:
+          $ref: '#/components/schemas/LocalizedText'
 
     ChangelogRelease:
       type: object
@@ -288,22 +293,19 @@ components:
             last looked.
           example: 1.1.0
 
-    # ── status/changelog writes (C#/.NET rewrite — see the "status"/"changelog"
-    #    tags and openapi/README.md's "Two eras, one file") ────────────────────
+    # ── status/changelog writes (superuser-only, called directly during an
+    #    incident or a release — no admin UI) ──────────────────────────────────
 
     CreateStatusBannerRequest:
       type: object
-      required: [severity, messageEn, endsAt]
+      required: [severity, message, endsAt]
       properties:
         severity:
           $ref: '#/components/schemas/StatusBannerSeverity'
-        messageEn:
-          type: string
-          maxLength: 300
-        messageEs:
-          type: string
-          maxLength: 300
-          description: Optional. Falls back to the English text on clients when empty.
+        message:
+          allOf:
+            - $ref: '#/components/schemas/LocalizedText'
+          description: Must include an `en` entry.
         startsAt:
           type: string
           format: date-time
@@ -325,17 +327,14 @@ components:
 
     CreateChangelogItemRequest:
       type: object
-      required: [changeType, summaryEn]
+      required: [changeType, summary]
       properties:
         changeType:
           $ref: '#/components/schemas/ChangeType'
-        summaryEn:
-          type: string
-          maxLength: 300
-        summaryEs:
-          type: string
-          maxLength: 300
-          description: Optional. Falls back to the English text on clients when empty.
+        summary:
+          allOf:
+            - $ref: '#/components/schemas/LocalizedText'
+          description: Must include an `en` entry.
 
     CreateChangelogReleaseRequest:
       type: object
@@ -364,8 +363,7 @@ components:
         release:
           $ref: '#/components/schemas/ChangelogRelease'
 
-    # ── notifications / invites (C#/.NET rewrite — see the "notifications"/
-    #    "invites" tags and openapi/README.md's "Two eras, one file") ─────────
+    # ── notifications / invites ──────────────────────────────────────────────
 
     Notification:
       type: object
@@ -2450,8 +2448,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  # ── status/changelog writes (C#/.NET rewrite — see openapi/README.md's
-  #    "Two eras, one file") ───────────────────────────────────────────────────
+  # ── status/changelog writes ──────────────────────────────────────────────
 
   /rest/v1/status/banners:
     post:
@@ -2613,7 +2610,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  # ── auth (C#/.NET rewrite — see openapi/README.md's "Two eras, one file") ──
+  # ── auth ──────────────────────────────────────────────────────────────────
 
   /rest/v1/auth/register:
     post:
@@ -3028,8 +3025,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  # ── notifications (C#/.NET rewrite — see openapi/README.md's "Two eras,
-  #    one file") ─────────────────────────────────────────────────────────────
+  # ── notifications ────────────────────────────────────────────────────────
 
   /rest/v1/notifications:
     get:
