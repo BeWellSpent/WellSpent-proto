@@ -6,21 +6,12 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/BeWellSpent/wellspent-backend/gen/wellspent/v1;wellspentv1";
 
-service PlaidService {
-  rpc CreateLinkToken(CreateLinkTokenRequest) returns (CreateLinkTokenResponse);
-  rpc ExchangePublicToken(ExchangePublicTokenRequest) returns (ExchangePublicTokenResponse);
-  rpc GetPlaidConnections(GetPlaidConnectionsRequest) returns (GetPlaidConnectionsResponse);
-  rpc DisconnectPlaid(DisconnectPlaidRequest) returns (DisconnectPlaidResponse);
-  // Refreshes the account list for an existing connection — call after a
-  // Link "update mode" session (e.g. account selection) completes, since
-  // update mode doesn't return a public_token to exchange.
-  rpc RefreshPlaidAccounts(RefreshPlaidAccountsRequest) returns (RefreshPlaidAccountsResponse);
-  // Clears a connection's sync cursor so the next sync replays the item's
-  // full transaction history, then starts that sync immediately.
-  rpc ResyncPlaidConnection(ResyncPlaidConnectionRequest) returns (ResyncPlaidConnectionResponse);
-}
-
-// ─── Shared message ───────────────────────────────────────────────────────────
+// PlaidService's RPCs (CreateLinkToken, ExchangePublicToken,
+// GetPlaidConnections, DisconnectPlaid, RefreshPlaidAccounts,
+// ResyncPlaidConnection) are all retired — every one now lives on the REST
+// transport under /rest/v1/plaid/*. Nothing implements this service over
+// Connect anymore. PlaidConnection/BudgetSyncWarning below stay: still
+// generated for iOS's (and a future Android's) domain model.
 
 message PlaidConnection {
   string id = 1;
@@ -48,55 +39,6 @@ message PlaidConnection {
   google.protobuf.Timestamp resync_available_at = 10;
 }
 
-// ─── CreateLinkToken ──────────────────────────────────────────────────────────
-
-message CreateLinkTokenRequest {
-  // Budget profile that imported transactions will be written to.
-  string budget_profile_id = 1;
-  // Optional. If set, requests a Link token in "update mode" with account
-  // selection enabled for this existing connection (add/remove accounts on
-  // an already-connected item) instead of a fresh connect flow.
-  string connection_id = 2;
-  // Optional. Must be a Plaid-dashboard-registered redirect URI. Only
-  // needed by native clients (e.g. iOS) so OAuth-based institutions can
-  // hand control back to the app; web's Link flow doesn't need one since
-  // OAuth stays within the same browser tab. Omit to preserve existing
-  // (non-OAuth-redirect) behavior.
-  string redirect_uri = 3;
-}
-
-message CreateLinkTokenResponse {
-  string link_token = 1;
-  // ISO 8601 expiration time of the link token.
-  string expiration = 2;
-}
-
-// ─── ExchangePublicToken ──────────────────────────────────────────────────────
-
-message ExchangePublicTokenRequest {
-  string public_token = 1;
-  string budget_profile_id = 2;
-}
-
-message ExchangePublicTokenResponse {
-  PlaidConnection connection = 1;
-}
-
-// ─── GetPlaidConnections ──────────────────────────────────────────────────────
-
-message GetPlaidConnectionsRequest {
-  // Optional. If set, filters to connections for a specific budget profile.
-  string budget_profile_id = 1;
-}
-
-message GetPlaidConnectionsResponse {
-  repeated PlaidConnection connections = 1;
-  // Budgets the caller belongs to that have connections which will never
-  // sync, because the member who linked them isn't on a paid plan. Empty
-  // when nothing is affected.
-  repeated BudgetSyncWarning warnings = 2;
-}
-
 // BudgetSyncWarning reports that some connections on a shared budget are
 // being skipped by the sync job.
 //
@@ -116,35 +58,4 @@ message BudgetSyncWarning {
   // True when the member is the caller, so clients can say "your bank"
   // rather than naming them, and offer an upgrade path.
   bool is_current_user = 5;
-}
-
-// ─── DisconnectPlaid ──────────────────────────────────────────────────────────
-
-message DisconnectPlaidRequest {
-  // UUID of the plaid_item row.
-  string connection_id = 1;
-}
-
-message DisconnectPlaidResponse {}
-
-// ─── RefreshPlaidAccounts ──────────────────────────────────────────────────────
-
-message RefreshPlaidAccountsRequest {
-  // UUID of the plaid_item row.
-  string connection_id = 1;
-}
-
-message RefreshPlaidAccountsResponse {
-  PlaidConnection connection = 1;
-}
-
-// ─── ResyncPlaidConnection ────────────────────────────────────────────────────
-
-message ResyncPlaidConnectionRequest {
-  // UUID of the plaid_item row. The caller must own it.
-  string connection_id = 1;
-}
-
-message ResyncPlaidConnectionResponse {
-  PlaidConnection connection = 1;
 }
