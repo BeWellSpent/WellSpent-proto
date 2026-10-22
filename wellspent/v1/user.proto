@@ -7,19 +7,12 @@ import "wellspent/v1/common.proto";
 
 option go_package = "github.com/BeWellSpent/wellspent-backend/gen/wellspent/v1;wellspentv1";
 
-service UserService {
-  rpc GetMe(GetMeRequest) returns (GetMeResponse);
-  rpc UpdateMe(UpdateMeRequest) returns (UpdateMeResponse);
-  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
-  rpc ChangeEmail(ChangeEmailRequest) returns (ChangeEmailResponse);
-  rpc DeleteMe(DeleteMeRequest) returns (DeleteMeResponse);
-
-  // ListCountries was retired on 2026-08-26 and now lives on the REST
-  // transport as `GET /rest/v1/countries` — see openapi/v1/wellspent.yaml.
-  // Global, identical for every caller, changes roughly never: exactly the
-  // shape a browser and a CDN should be allowed to cache, which Connect's
-  // unary-POST framing makes impossible.
-}
+// UserService's RPCs (GetMe, UpdateMe, ChangePassword, ChangeEmail, DeleteMe,
+// ListCountries) are all retired — every one now lives on the REST transport
+// under /rest/v1/users/* and /rest/v1/countries. Nothing implements this
+// service over Connect anymore. The User message below stays: it's still
+// generated for iOS's (and a future Android's) domain model, built from the
+// REST response by WellSpent/Shared/UserRESTMapping.swift.
 
 message User {
   string id = 1;
@@ -43,48 +36,3 @@ message User {
   // re-deriving the rule.
   bool has_apple_private_email = 15;
 }
-
-message GetMeRequest {}
-
-message GetMeResponse {
-  User user = 1;
-}
-
-message UpdateMeRequest {
-  string first_name = 1;
-  string last_name = 2;
-  string country_code = 3;
-  string state_code = 4;
-  FilingStatus filing_status = 5;
-  TaxPaymentFrequency tax_payment_frequency = 6;
-  string language = 7; // BCP 47 locale code, e.g. "en", "es"
-  string currency = 8; // ISO 4217 currency code, e.g. "USD", "ARS", "EUR"
-}
-
-message UpdateMeResponse {
-  User user = 1;
-}
-
-message ChangePasswordRequest {
-  string current_password = 1;
-  string new_password = 2;
-}
-
-message ChangePasswordResponse {}
-
-// Replaces the account's address and resets verification, so the new address
-// has to be confirmed before the account is usable again. Exists chiefly as
-// the escape hatch for an address mistyped at registration — resending to a
-// wrong address can never work.
-message ChangeEmailRequest {
-  string new_email = 1;
-}
-
-message ChangeEmailResponse {
-  // The updated user, with is_verified now false.
-  User user = 1;
-}
-
-message DeleteMeRequest {}
-
-message DeleteMeResponse {}

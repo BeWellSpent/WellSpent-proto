@@ -7,15 +7,13 @@ info:
     name: Proprietary
     url: https://bewellspent.com
   description: |
-    The parts of the WellSpent API that return the **same response for every
-    caller** and change rarely.
-
-    Everything else — all personalized reads and every mutation — stays on
-    ConnectRPC (`buf.build/bewellspent/wellspent`). Transport follows data
-    shape: a response that is identical for everyone should be cacheable by
-    the browser and by a CDN, and Connect's unary-POST framing makes that
-    impossible. A response scoped to one user gains nothing from HTTP caching
-    and everything from a shared typed schema.
+    The complete WellSpent REST API. The backend (`WellSpent-backend`,
+    C#/.NET) is plain REST end to end — there is no second transport to
+    reconcile. The `.proto` files in `wellspent/v1/` describe a ConnectRPC
+    surface nothing implements anymore; only their `message`/`enum`
+    definitions are still operative, kept for client type generation (native
+    structs for iOS today, and a future Android client, without
+    hand-translating this schema per platform).
 
     Read `openapi/README.md` in this repo before adding an endpoint here.
 
@@ -32,43 +30,33 @@ tags:
     description: Global reference data.
   - name: status
     description: |
-      Operator-authored service status. The public GET was always here; the
-      superuser-only write paths (create/list/expire) are new, converted from
-      `StatusService` in status.proto as part of the C#/.NET rewrite (issue
-      #78/#81) — see openapi/README.md's "Two eras, one file". The Go backend
-      keeps serving the public read over Connect-adjacent REST and the writes
-      over Connect until the rewrite's clients cut over.
+      Operator-authored service status. The public GET is the single most
+      cache-worthy response in the system; the superuser-only write paths
+      (create/list/expire) are called directly (curl) during an incident —
+      there is no admin UI.
   - name: changelog
     description: |
-      Release notes. The authenticated GET was always here; the superuser-only
-      create path is new, converted from `ChangelogService` in changelog.proto
-      as part of the C#/.NET rewrite (issue #78/#81) — see openapi/README.md's
-      "Two eras, one file".
+      Release notes, kept per shipping component. The reader-facing GET is
+      authenticated; publishing (superuser-only) happens via
+      `WellSpent-backend/scripts/changelog.sh` at the moment a version ships.
   - name: auth
     description: |
-      Part of the C#/.NET rewrite's full REST contract (issue #78/#80) — see
-      openapi/README.md's "Two eras, one file". Converted 1:1 from
-      `AuthService` in `auth.proto`; the Go backend keeps serving these over
-      Connect until the rewrite's clients cut over. Every endpoint here is
-      public — no session exists yet.
+      Every endpoint here is public — no session exists yet.
   - name: users
     description: |
-      Part of the C#/.NET rewrite's full REST contract (issue #78/#80).
-      Converted 1:1 from `UserService` in `user.proto`. Every endpoint here
-      requires bearerAuth and operates on the caller's own account only.
+      Every endpoint here requires bearerAuth and operates on the caller's
+      own account only.
   - name: notifications
     description: |
-      Part of the C#/.NET rewrite's full REST contract (issue #78/#82).
-      Converted 1:1 from `NotificationService` in `notification.proto`. The
-      trigger/fan-out side (firing a notification when a transaction is
-      created, a period starts, etc.) isn't here — those arrive with
-      whichever sub-issue ports the triggering domain.
+      The trigger/fan-out side (firing a notification when a transaction is
+      created, a period starts, etc.) isn't here — this tag covers only the
+      reader-facing list/mark-read/subscription endpoints and device-token
+      registration.
   - name: invites
     description: |
-      Part of the C#/.NET rewrite's full REST contract (issue #78/#82).
-      Converted 1:1 from `InviteService` in `invite.proto`. Every endpoint
-      except the public token lookup requires bearerAuth; send/list/cancel
-      additionally require the caller to be an admin on the budget.
+      Every endpoint except the public token lookup requires bearerAuth;
+      send/list/cancel additionally require the caller to be an admin on the
+      budget.
 
 components:
   securitySchemes:

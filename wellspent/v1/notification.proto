@@ -6,21 +6,13 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/BeWellSpent/wellspent-backend/gen/wellspent/v1;wellspentv1";
 
-service NotificationService {
-  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
-  rpc MarkNotificationsRead(MarkNotificationsReadRequest) returns (MarkNotificationsReadResponse);
-  rpc GetUnreadCount(GetUnreadCountRequest) returns (GetUnreadCountResponse);
-  rpc ListAlertSubscriptions(ListAlertSubscriptionsRequest) returns (ListAlertSubscriptionsResponse);
-  rpc UpsertAlertSubscription(UpsertAlertSubscriptionRequest) returns (UpsertAlertSubscriptionResponse);
-  rpc DeleteAlertSubscription(DeleteAlertSubscriptionRequest) returns (DeleteAlertSubscriptionResponse);
-
-  // Registers an APNs device token for the authenticated user, so in-app
-  // notifications can also be delivered as a push. Upserts by token — the
-  // same physical device re-registering just updates its owner.
-  rpc RegisterDeviceToken(RegisterDeviceTokenRequest) returns (RegisterDeviceTokenResponse);
-}
-
-// ─── In-app notifications ─────────────────────────────────────────────────────
+// NotificationService's RPCs (ListNotifications, MarkNotificationsRead,
+// GetUnreadCount, ListAlertSubscriptions, UpsertAlertSubscription,
+// DeleteAlertSubscription, RegisterDeviceToken) are all retired — every one
+// now lives on the REST transport under /rest/v1/notifications/* and
+// /rest/v1/alert-subscriptions/*. Nothing implements this service over
+// Connect anymore. Notification/AlertSubscription below stay: still
+// generated for iOS's (and a future Android's) domain model.
 
 message Notification {
   string id = 1;
@@ -33,33 +25,6 @@ message Notification {
   bool is_read = 7;
   google.protobuf.Timestamp created_at = 8;
 }
-
-message ListNotificationsRequest {
-  // Optional — filter to a specific budget. Empty returns all for the user.
-  string budget_profile_id = 1;
-  // Max number of notifications to return (default 50).
-  int32 limit = 2;
-}
-
-message ListNotificationsResponse {
-  repeated Notification notifications = 1;
-  int32 unread_count = 2;
-}
-
-message MarkNotificationsReadRequest {
-  // IDs to mark as read. Empty marks ALL unread notifications as read.
-  repeated string ids = 1;
-}
-
-message MarkNotificationsReadResponse {}
-
-message GetUnreadCountRequest {}
-
-message GetUnreadCountResponse {
-  int32 count = 1;
-}
-
-// ─── Alert subscriptions ──────────────────────────────────────────────────────
 
 // AlertSubscription defines when and how a user is notified about budget events.
 //
@@ -87,40 +52,3 @@ message AlertSubscription {
   bool notify_all_members = 9;
   google.protobuf.Timestamp created_at = 10;
 }
-
-message ListAlertSubscriptionsRequest {
-  string budget_profile_id = 1;
-}
-
-message ListAlertSubscriptionsResponse {
-  repeated AlertSubscription subscriptions = 1;
-}
-
-message UpsertAlertSubscriptionRequest {
-  string budget_profile_id = 1;
-  string alert_type = 2;
-  string channel = 3;
-  float threshold_pct = 4;
-  string threshold_scope = 5;
-  int32 category_id = 6;
-  bool notify_all_members = 7;
-}
-
-message UpsertAlertSubscriptionResponse {
-  AlertSubscription subscription = 1;
-}
-
-message DeleteAlertSubscriptionRequest {
-  string id = 1;
-}
-
-message DeleteAlertSubscriptionResponse {}
-
-// ─── Push device registration ─────────────────────────────────────────────────
-
-message RegisterDeviceTokenRequest {
-  string token = 1;
-  string platform = 2; // "ios"
-}
-
-message RegisterDeviceTokenResponse {}
