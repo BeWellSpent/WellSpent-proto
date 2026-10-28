@@ -2025,7 +2025,7 @@ components:
         uncategorizedActual, totalOverBudget, totalUnplanned, remainderPlan, remainderActual,
         remainderPlanned, planCategories, overviewCategories, fixedActualTotal, variableActualTotal,
         overBudgetTransactionIds, totalCommittedIncludingSavings, totalPlannedIncludingSavings,
-        totalActualIncludingSavings, savingsPlannedTotal,
+        totalActualIncludingSavings, savingsPlannedTotal, savingsActualTotal,
       ]
       properties:
         incomeFromSources:
@@ -2093,6 +2093,9 @@ components:
         savingsPlannedTotal:
           $ref: '#/components/schemas/Money'
           description: Sum of SavingsSource.amount — the "expected saved" figure, exposed directly so a client doesn't need to subtract totalPlanned from totalPlannedIncludingSavings itself.
+        savingsActualTotal:
+          $ref: '#/components/schemas/Money'
+          description: Actual spend recorded under the Savings category this period — "saved so far", exposed directly for the same reason as savingsPlannedTotal.
 
     TransactionReview:
       type: object
