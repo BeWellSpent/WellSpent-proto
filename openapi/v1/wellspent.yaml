@@ -2024,7 +2024,8 @@ components:
         incomeFromSources, incomeFromEntries, totalCommitted, totalPlanned, totalActual,
         uncategorizedActual, totalOverBudget, totalUnplanned, remainderPlan, remainderActual,
         remainderPlanned, planCategories, overviewCategories, fixedActualTotal, variableActualTotal,
-        overBudgetTransactionIds,
+        overBudgetTransactionIds, totalCommittedIncludingSavings, totalPlannedIncludingSavings,
+        totalActualIncludingSavings, savingsPlannedTotal,
       ]
       properties:
         incomeFromSources:
@@ -2035,12 +2036,13 @@ components:
           description: Sum of IncomeEntry.amount for this period — the Expense Overview tab's income.
         totalCommitted:
           $ref: '#/components/schemas/Money'
-          description: Sum of plannedTotal over planCategories — the Expense Plan tab's "committed".
+          description: Sum of plannedTotal over planCategories, excluding Savings — the Expense Plan tab's "committed". Savings is an optimistic allocation, not an expense (issue #94); see totalCommittedIncludingSavings for the combined figure.
         totalPlanned:
           $ref: '#/components/schemas/Money'
-          description: Sum of plannedTotal over overviewCategories — the Expense Overview tab's "planned". Neither total counts a Fixed expense that isn't due this period.
+          description: Sum of plannedTotal over overviewCategories, excluding Savings — the Expense Overview tab's "planned". Neither total counts a Fixed expense that isn't due this period.
         totalActual:
           $ref: '#/components/schemas/Money'
+          description: Excludes Savings — see totalActualIncludingSavings for the combined figure.
         uncategorizedActual:
           $ref: '#/components/schemas/Money'
         totalOverBudget:
@@ -2069,15 +2071,28 @@ components:
             $ref: '#/components/schemas/CategoryExpenseSummary'
         fixedActualTotal:
           $ref: '#/components/schemas/Money'
-          description: Paid Fixed transactions only — an unpaid one is not yet spend. fixedActualTotal + variableActualTotal == totalActual always.
+          description: Paid Fixed transactions only, excluding Savings — an unpaid one is not yet spend. fixedActualTotal + variableActualTotal == totalActual always.
         variableActualTotal:
           $ref: '#/components/schemas/Money'
+          description: Excludes Savings.
         overBudgetTransactionIds:
           type: array
           description: Variable transactions that pushed their category past its combined plan, for the Transactions tab's "Exceeded only" filter — walked chronologically per category, flagged from the point the running total first crosses the plan onward, not every transaction in an over-budget category.
           items:
             type: string
             format: uuid
+        totalCommittedIncludingSavings:
+          $ref: '#/components/schemas/Money'
+          description: totalCommitted with Savings folded back in (issue #94).
+        totalPlannedIncludingSavings:
+          $ref: '#/components/schemas/Money'
+          description: totalPlanned with Savings folded back in.
+        totalActualIncludingSavings:
+          $ref: '#/components/schemas/Money'
+          description: totalActual with Savings folded back in.
+        savingsPlannedTotal:
+          $ref: '#/components/schemas/Money'
+          description: Sum of SavingsSource.amount — the "expected saved" figure, exposed directly so a client doesn't need to subtract totalPlanned from totalPlannedIncludingSavings itself.
 
     TransactionReview:
       type: object
