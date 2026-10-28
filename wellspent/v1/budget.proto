@@ -329,4 +329,5 @@ message GetExpenseSummaryResponse {
   Money total_planned_including_savings = 18;
   Money total_actual_including_savings = 19;
   Money savings_planned_total = 20; // sum of SavingsSource.amount — the "expected saved" figure
+  Money savings_actual_total = 21; // actual spend recorded under the Savings category this period — "saved so far"
 }
