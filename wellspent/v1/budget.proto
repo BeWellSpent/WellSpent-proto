@@ -281,9 +281,14 @@ message GetExpenseSummaryResponse {
   // sum of their list's planned_total; total_planned used to include the
   // not-due amount while total_committed did not, so the Overview total
   // disagreed with the Plan total and neither matched its own rows.
-  Money total_committed = 3; // sum of planned_total over plan_categories — Expense Plan tab's "committed"
-  Money total_planned = 4; // sum of planned_total over overview_categories — Expense Overview tab's "planned"
-  Money total_actual = 5;
+  //
+  // All three exclude the Savings category (issue #94) — savings is an
+  // optimistic allocation, not an expense, so it never counted toward what
+  // was actually spent or committed. See the *_including_savings fields
+  // below for the combined figure.
+  Money total_committed = 3; // sum of planned_total over plan_categories, excluding Savings
+  Money total_planned = 4; // sum of planned_total over overview_categories, excluding Savings
+  Money total_actual = 5; // excludes Savings
   Money uncategorized_actual = 6;
   Money total_over_budget = 7;
   Money total_unplanned = 8; // uncategorized_actual + actual spend in categories with no plan
@@ -302,8 +307,8 @@ message GetExpenseSummaryResponse {
   // Transactions tab shows these beside a grand total the same response
   // supplies; re-deriving either half client-side would put two spellings of
   // one number next to each other on screen.
-  Money fixed_actual_total = 14; // paid Fixed transactions only — an unpaid one is not yet spend
-  Money variable_actual_total = 15;
+  Money fixed_actual_total = 14; // paid Fixed transactions only, excluding Savings
+  Money variable_actual_total = 15; // excludes Savings
 
   // Variable transactions that pushed their category past its combined plan,
   // for the Transactions tab's "Exceeded only" filter. Walked chronologically
@@ -315,4 +320,13 @@ message GetExpenseSummaryResponse {
   // carries. It also settles which transactions are "exceeded" — a business
   // rule the two clients have disagreed about before (issue #48).
   repeated string over_budget_transaction_ids = 16;
+
+  // Savings, broken back out (issue #94) — the three totals above exclude
+  // it, so these are what folding it back in looks like, plus the planned
+  // figure on its own for a client that just wants "expected savings" next
+  // to an expense-only total without doing the subtraction itself.
+  Money total_committed_including_savings = 17;
+  Money total_planned_including_savings = 18;
+  Money total_actual_including_savings = 19;
+  Money savings_planned_total = 20; // sum of SavingsSource.amount — the "expected saved" figure
 }
