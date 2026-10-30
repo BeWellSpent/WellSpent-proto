@@ -981,7 +981,7 @@ components:
 
     BudgetPeriod:
       type: object
-      required: [id, budgetProfileId, startDate, endDate, isArchived]
+      required: [id, budgetProfileId, startDate, endDate, isArchived, needsReview]
       properties:
         id:
           type: string
@@ -997,6 +997,9 @@ components:
           format: date
         isArchived:
           type: boolean
+        needsReview:
+          type: boolean
+          description: True right after this period was created by a cycle (not a profile's first-ever period) and not yet confirmed via /review/confirm — see /review/confirm and /review/retrigger below.
 
     BudgetPerson:
       type: object
@@ -3773,6 +3776,100 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           description: The caller is not a member of this period's budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No period with this id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budget-periods/{id}/review/confirm:
+    post:
+      operationId: confirmPeriodReview
+      tags: [budgets]
+      summary: Acknowledge a cycled period's carried-over balances, clearing needsReview.
+      description: |
+        Admin only. The user has reviewed what carried over from the previous
+        period (and, separately, the previous period's still-unpaid Fixed
+        rows, which this doesn't touch — editing the previous period directly
+        is how those get resolved) and is done. A no-op, not an error, if
+        needsReview is already false.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The period, with needsReview now false.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetPeriodResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not an admin on this period's budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No period with this id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budget-periods/{id}/review/retrigger:
+    post:
+      operationId: retriggerPeriodReview
+      tags: [budgets]
+      summary: Recompute this period's carried-over balances from the previous period's current data.
+      description: |
+        Admin only. Deletes this period's existing carried-over transactions
+        and re-derives them from the previous period — useful when the user
+        edited the previous period's data (e.g. corrected an amount) after it
+        cycled but before confirming. Does not touch needsReview, spawned
+        Fixed-expense transactions, or savings transactions; does nothing if
+        this period carried nothing in the first place (carryover disabled,
+        or the profile has no previous period).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The period, unchanged — carried-over transactions are recomputed as a side effect, not returned here.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetPeriodResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The caller is not an admin on this period's budget.
           content:
             application/json:
               schema:
