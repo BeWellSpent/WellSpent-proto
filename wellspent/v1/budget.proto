@@ -54,6 +54,8 @@ message BudgetPeriod {
   google.protobuf.Timestamp start_date = 3;
   google.protobuf.Timestamp end_date = 4;
   bool is_archived = 5;
+  // True right after a genuine cycle (not a profile's first-ever period) until confirmed via the REST review/confirm endpoint.
+  bool needs_review = 6;
 }
 
 // A person tracked on the budget profile. Not a registered user necessarily.
