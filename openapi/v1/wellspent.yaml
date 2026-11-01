@@ -1224,6 +1224,25 @@ components:
         beforeTax:
           type: boolean
           description: True = gross income; tax-reserve estimation applies (US only).
+        anchorDate:
+          type: string
+          format: date
+          nullable: true
+          description: Scheduled pay-day anchor. Null means no regular schedule (irregular income) — falls back to calendar-month period boundaries.
+        earlyArrivalToleranceDays:
+          type: integer
+          format: int32
+          description: How many days before anchorDate a deposit still counts as on-time for period-funding purposes. 0 = no tolerance.
+        effectiveFrom:
+          type: string
+          format: date
+          nullable: true
+          description: When this schedule version took effect. Null = effective since creation. Server-computed on updateIncomeSource when the schedule actually changes — never sent by the client.
+        effectiveTo:
+          type: string
+          format: date
+          nullable: true
+          description: When this schedule version stopped being current (set on the superseded row once a later edit forks a new one). Null = still current. Server-computed, never sent by the client.
 
     IncomeEntry:
       type: object
@@ -1311,6 +1330,15 @@ components:
           $ref: '#/components/schemas/RecurringFrequency'
         beforeTax:
           type: boolean
+        anchorDate:
+          type: string
+          format: date
+          nullable: true
+          description: Omit/null for irregular income. On updateIncomeSource, changing this (or earlyArrivalToleranceDays) from the source's current value versions the schedule — the existing row is capped and a new one takes over from the next period, rather than mutating in place.
+        earlyArrivalToleranceDays:
+          type: integer
+          format: int32
+          description: 0 = no tolerance. Not in the required list (defaults to 0) so an older client omitting it doesn't break.
 
     IncomeSourceResponse:
       type: object
