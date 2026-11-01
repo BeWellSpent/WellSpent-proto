@@ -2007,6 +2007,17 @@ components:
         actualTotal:
           $ref: '#/components/schemas/Money'
 
+    PersonActualIncome:
+      type: object
+      required: [budgetPersonId, actualIncome]
+      description: Only people with at least one payment-method-attributed income transaction appear here — an unattributed deposit still counts in actualIncomeTotal but has no person to list.
+      properties:
+        budgetPersonId:
+          type: integer
+          format: int64
+        actualIncome:
+          $ref: '#/components/schemas/Money'
+
     CategoryExpenseSummary:
       type: object
       required: [categoryId, plannedTotal, isOver, personBreakdowns]
@@ -2115,6 +2126,17 @@ components:
         savingsActualTotal:
           $ref: '#/components/schemas/Money'
           description: Actual spend recorded under the Savings category this period — "saved so far", exposed directly for the same reason as savingsPlannedTotal.
+        actualIncomeTotal:
+          $ref: '#/components/schemas/Money'
+          description: Sum of non-excluded "Income"-category transactions assigned to this period — the first real (not planned) income figure in the app. Additive to incomeFromSources/incomeFromEntries, doesn't replace either.
+        remainderActualIncome:
+          $ref: '#/components/schemas/Money'
+          description: actualIncomeTotal - totalActual. The other remainder* fields are all planned-income-based; this is the only one built from two real, actual figures.
+        actualIncomeByPerson:
+          type: array
+          description: Per-person breakdown of actualIncomeTotal, attributed via each income transaction's payment method.
+          items:
+            $ref: '#/components/schemas/PersonActualIncome'
 
     TransactionReview:
       type: object
