@@ -1573,6 +1573,9 @@ components:
         fixedExpensePaidOffEarly:
           type: boolean
           description: True on exactly the one payment that brought its linked fixed expense's remainingBalance to zero, when that happened strictly before the template's endDate. endDate itself never shifts — this is the only lasting record that the plan finished ahead of schedule, since the template disappears from listFixedExpenses once deactivated.
+        periodOverridden:
+          type: boolean
+          description: Set by setTransactionPeriod — a manual period assignment that automatic (re)assignment logic must never touch.
 
     TransactionResponse:
       type: object
@@ -1685,6 +1688,19 @@ components:
           format: uuid
         excluded:
           type: boolean
+
+    SetTransactionPeriodRequest:
+      type: object
+      required: [budgetPeriodId, newBudgetPeriodId]
+      properties:
+        budgetPeriodId:
+          type: string
+          format: uuid
+          description: The transaction's current period, used for the access check (same pattern as every other transaction mutation).
+        newBudgetPeriodId:
+          type: string
+          format: uuid
+          description: The period to move the transaction into. Sets periodOverridden so it's never touched by automatic reassignment.
 
     FrequencyUnit:
       type: string
@@ -5234,6 +5250,57 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           description: The period is archived, or the caller is not a collaborator or admin.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/transactions/{id}/period:
+    put:
+      operationId: setTransactionPeriod
+      tags: [transactions]
+      summary: Manually move a transaction to a different period, overriding automatic assignment.
+      description: |
+        Admin or collaborator. Sets periodOverridden on the transaction, so no
+        later automatic (re)assignment (Plaid import's income-aware
+        assignment, or a backfill job) ever moves it again — the override
+        stands until changed by this same endpoint.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetTransactionPeriodRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The period is archived, or the caller is not a collaborator or admin.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No period with newBudgetPeriodId on this transaction's budget.
           content:
             application/json:
               schema:
