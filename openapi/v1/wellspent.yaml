@@ -1243,6 +1243,9 @@ components:
           format: date
           nullable: true
           description: When this schedule version stopped being current (set on the superseded row once a later edit forks a new one). Null = still current. Server-computed, never sent by the client.
+        adjustForWeekends:
+          type: boolean
+          description: When true (the default), a monthly/yearly anchorDate that lands on a Saturday or Sunday rolls back to the preceding Friday before being used as a pay date anywhere (period boundaries, early-arrival resolution) — matches how most real payroll actually pays out. Meaningless for weekly/biweekly sources, whose anchor day-of-week never changes.
 
     IncomeEntry:
       type: object
@@ -1339,6 +1342,9 @@ components:
           type: integer
           format: int32
           description: 0 = no tolerance. Not in the required list (defaults to 0) so an older client omitting it doesn't break.
+        adjustForWeekends:
+          type: boolean
+          description: Defaults to true server-side when omitted (not in the required list, for the same backward-compatibility reason as earlyArrivalToleranceDays).
 
     IncomeSourceResponse:
       type: object
