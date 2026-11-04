@@ -2165,7 +2165,10 @@ components:
           description: Sum of non-excluded "Income"-category transactions assigned to this period — the first real (not planned) income figure in the app. Additive to incomeFromSources/incomeFromEntries, doesn't replace either.
         remainderActualIncome:
           $ref: '#/components/schemas/Money'
-          description: actualIncomeTotal - totalActual. The other remainder* fields are all planned-income-based; this is the only one built from two real, actual figures.
+          description: actualIncomeTotal - totalActualIncludingSavings. Savings that really left the account count as spent. The other remainder* fields are all planned-income-based; this is the only one built from two real, actual figures.
+        remainderPlanIncludingSavings:
+          $ref: '#/components/schemas/Money'
+          description: incomeFromSources - totalCommittedIncludingSavings — remainderPlan with the planned Savings allocation subtracted too, so a client shows both without subtracting two Money values itself.
         actualIncomeByPerson:
           type: array
           description: Per-person breakdown of actualIncomeTotal, attributed via each income transaction's payment method.
