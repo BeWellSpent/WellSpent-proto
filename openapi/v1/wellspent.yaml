@@ -6322,14 +6322,62 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /rest/v1/plaid/connections/{id}/sync:
+    post:
+      operationId: syncPlaidConnection
+      tags: [plaid]
+      summary: Sync a connection now, from its current cursor.
+      description: |
+        Fetches only what is new; the cursor is not cleared and the daily
+        resync is not consumed. Only the member who linked it, and only on a
+        paid plan. Runs to completion inside the request and returns the
+        connection as it stands afterwards. A request made while a sync of the
+        same connection is already running waits for that run. Refused when the
+        connection is disconnected; one in `error` status is allowed.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Sync finished.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaidConnectionResponse'
+        '400':
+          description: This connection is disconnected, or the caller is on the free plan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not a US resident, or the caller did not link this connection.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /rest/v1/plaid/connections/{id}/resync:
     post:
       operationId: resyncPlaidConnection
       tags: [plaid]
-      summary: Clear a connection's sync cursor and replay its full transaction history.
+      summary: Clear a connection's sync cursor and replay its full transaction history ("resync from scratch").
       description: |
         Only the member who linked it, and only on a paid plan. Capped at
-        once every 24 hours per connection.
+        once every 24 hours per connection. To just fetch what is new, use
+        `syncPlaidConnection`.
       security:
         - bearerAuth: []
       parameters:
