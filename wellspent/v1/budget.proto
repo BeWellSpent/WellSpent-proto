@@ -264,6 +264,13 @@ message CategoryExpenseSummary {
   // Earliest next due date across the templates behind
   // not_due_planned_total. Unset when that amount is unset.
   google.protobuf.Timestamp next_due_date = 7;
+
+  // The two inputs behind planned_total, so a plan row can say where its number
+  // came from. planned_total is allocated_total when that is non-zero,
+  // otherwise fixed_due_total — they do not add, so both can be set and the
+  // allocation wins. Set on plan_categories only; unset when zero.
+  Money allocated_total = 8; // manual allocations, summed across people
+  Money fixed_due_total = 9; // Fixed transactions due this period
 }
 
 message PersonExpenseSummary {
