@@ -2067,6 +2067,12 @@ components:
         incomePlanned:
           $ref: '#/components/schemas/Money'
           description: Sum of default amounts of this person's current income sources.
+        plannedExpenses:
+          $ref: '#/components/schemas/Money'
+          description: spentPlanned minus savedPlanned — the person's planned spending without savings. Optional; absent from servers that predate it.
+        plannedRemaining:
+          $ref: '#/components/schemas/Money'
+          description: incomePlanned minus spentPlanned — what is left of the person's planned income after their plan, savings included. Negative when the plan exceeds their income. Optional.
 
     PersonActualIncome:
       type: object
@@ -2217,6 +2223,18 @@ components:
         unattributedSpent:
           $ref: '#/components/schemas/Money'
           description: Spending this period (savings included) on a transaction whose payment method has no person, or that has no payment method. It belongs to no entry in people.
+        unattributedPlanned:
+          $ref: '#/components/schemas/Money'
+          description: Planned amounts that belong to no person — allocations with no person, Fixed bills due this period whose payment method has no person, savings sources with no person — using the same manual-over-fixed rule per category as each person's spentPlanned.
+        fixedDuePlannedTotal:
+          $ref: '#/components/schemas/Money'
+          description: Sum of the planned amounts of every Fixed transaction spawned into this period, categorized or not.
+        dueFixedExpenseIds:
+          type: array
+          description: Fixed expense templates with a bill spawned into this period, so a client can tell due-this-period from not-due without re-deriving schedules.
+          items:
+            type: string
+            format: uuid
 
     TransactionReview:
       type: object
