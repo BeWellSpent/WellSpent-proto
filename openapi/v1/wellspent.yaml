@@ -2075,7 +2075,7 @@ components:
           type: number
           format: double
           nullable: true
-          description: amount as a percentage of the period's actual income; null when none arrived.
+          description: amount as a percentage of planned income (the person's, when filtered); null when none is planned.
 
     CommitmentPeriod:
       allOf:
@@ -2178,7 +2178,7 @@ components:
           type: number
           format: double
           nullable: true
-          description: delta as a percentage of the current period's actual income.
+          description: delta as a percentage of planned income.
 
     CategoryTrendsReport:
       type: object
