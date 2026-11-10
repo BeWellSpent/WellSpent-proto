@@ -2041,6 +2041,33 @@ components:
         actualTotal:
           $ref: '#/components/schemas/Money'
 
+    PersonPeriodSummary:
+      type: object
+      required: [budgetPersonId, spentActual, spentPlanned, savedActual, savedPlanned, incomeActual, incomePlanned]
+      description: One person's period at a glance. spentActual and spentPlanned both include savings, so "left" compares like with like; savedActual/savedPlanned are the savings part of each.
+      properties:
+        budgetPersonId:
+          type: integer
+          format: int64
+        spentActual:
+          $ref: '#/components/schemas/Money'
+          description: Non-excluded spending this period attributed to this person, savings included. Received (negative) amounts net against it.
+        spentPlanned:
+          $ref: '#/components/schemas/Money'
+          description: The person's planned total across categories, savings included — the sum of their personBreakdowns plannedTotal on planCategories.
+        savedActual:
+          $ref: '#/components/schemas/Money'
+          description: The Savings-category part of spentActual.
+        savedPlanned:
+          $ref: '#/components/schemas/Money'
+          description: Sum of this person's SavingsSource amounts.
+        incomeActual:
+          $ref: '#/components/schemas/Money'
+          description: Same figure as this person's actualIncomeByPerson entry; zero when they have none.
+        incomePlanned:
+          $ref: '#/components/schemas/Money'
+          description: Sum of default amounts of this person's current income sources.
+
     PersonActualIncome:
       type: object
       required: [budgetPersonId, actualIncome]
@@ -2182,6 +2209,14 @@ components:
           description: Per-person breakdown of actualIncomeTotal, attributed via each income transaction's payment method.
           items:
             $ref: '#/components/schemas/PersonActualIncome'
+        people:
+          type: array
+          description: One entry per active budget person (just the caller under focused view), for the Home screen's person cards. Every figure is attributed through a transaction's payment method, the same rule as personBreakdowns.
+          items:
+            $ref: '#/components/schemas/PersonPeriodSummary'
+        unattributedSpent:
+          $ref: '#/components/schemas/Money'
+          description: Spending this period (savings included) on a transaction whose payment method has no person, or that has no payment method. It belongs to no entry in people.
 
     TransactionReview:
       type: object
