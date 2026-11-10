@@ -2081,6 +2081,14 @@ components:
           format: date
           nullable: true
           description: Earliest next due date across the templates behind notDuePlannedTotal. Null when that amount is null.
+        allocatedTotal:
+          $ref: '#/components/schemas/Money'
+          nullable: true
+          description: Manual allocations for this category, summed across people. plannedTotal equals this when it is non-zero, otherwise fixedDueTotal — they do not add. Set on planCategories rows only; null when zero.
+        fixedDueTotal:
+          $ref: '#/components/schemas/Money'
+          nullable: true
+          description: Fixed transactions due this period for this category. Set on planCategories rows only; null when zero. Both this and allocatedTotal can be set; the allocation wins in plannedTotal.
 
     GetExpenseSummaryResponse:
       type: object
