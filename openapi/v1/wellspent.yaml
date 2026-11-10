@@ -58,6 +58,8 @@ tags:
       send/list/cancel additionally require the caller to be an admin on the
       budget.
 
+  - name: reports
+    description: Cross-period reports (Commitments, Category trends).
 components:
   securitySchemes:
     bearerAuth:
@@ -2614,8 +2616,6 @@ components:
           type: string
           format: uuid
 
-  - name: reports
-    description: Cross-period reports (Commitments, Category trends).
 paths:
   /rest/v1/ping:
     get:
