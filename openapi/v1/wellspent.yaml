@@ -59,7 +59,7 @@ tags:
       budget.
 
   - name: reports
-    description: Cross-period reports (Commitments, Category trends).
+    description: Cross-period reports (Category trends).
 components:
   securitySchemes:
     bearerAuth:
@@ -2077,19 +2077,10 @@ components:
           nullable: true
           description: amount as a percentage of planned income (the person's, when filtered); null when none is planned.
 
-    CommitmentPeriod:
-      allOf:
-        - $ref: '#/components/schemas/ReportPeriod'
-        - type: object
-          properties:
-            committed:
-              $ref: '#/components/schemas/Money'
-              description: Planned amounts of the Fixed transactions spawned into this period. Absent when locked.
-
-    CommitmentDrop:
+    FixedExpenseDrop:
       type: object
       required: [endsOn, amount, names]
-      description: Payment plans ending on or before the end of a month, and how much the baseline drops after that.
+      description: Payment plans ending within a month, and how much the fixed baseline drops after that.
       properties:
         endsOn:
           type: string
@@ -2102,43 +2093,18 @@ components:
           items:
             type: string
 
-    CommitmentReport:
+    FixedExpenseProjection:
       type: object
-      required: [periods, categories, incomePlanned, billCount, planCount, projectionLocked]
+      required: [locked]
       properties:
-        periods:
-          type: array
-          description: The last 6 started periods, oldest first; the last is the current one.
-          items:
-            $ref: '#/components/schemas/CommitmentPeriod'
-        categories:
-          type: array
-          description: The current period's committed amount by category, largest first.
-          items:
-            $ref: '#/components/schemas/CategoryAmount'
-        incomePlanned:
-          $ref: '#/components/schemas/Money'
-          description: Planned income from current income sources (the person's, when filtered).
-        committedPercentOfIncome:
-          type: number
-          format: double
-          nullable: true
-          description: The current period's committed amount as a percentage of incomePlanned; null when no income is planned.
-        billCount:
-          type: integer
-          format: int32
-          description: Fixed bills spawned into the current period.
-        planCount:
-          type: integer
-          format: int32
-          description: Active payment plans and installments.
         projection:
           type: array
-          description: When the baseline drops, soonest first, up to 6 months. Absent when projectionLocked.
+          description: When the baseline drops, soonest first, up to 6 months. Absent when locked.
           items:
-            $ref: '#/components/schemas/CommitmentDrop'
-        projectionLocked:
+            $ref: '#/components/schemas/FixedExpenseDrop'
+        locked:
           type: boolean
+          description: True for Free callers; the projection is Pro.
 
     TrendPeriod:
       allOf:
@@ -5677,6 +5643,53 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /rest/v1/budgets/{id}/fixed-expenses/projection:
+    get:
+      operationId: getFixedExpenseProjection
+      tags: [budgets]
+      summary: When the fixed baseline drops as payment plans end.
+      description: |
+        Member only. Pro and Lifetime only; Free callers get locked true and no
+        projection.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: focusedView
+          in: query
+          required: false
+          description: Only the caller's own plans, as in listFixedExpenses.
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: The projection.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixedExpenseProjection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No such budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /rest/v1/budgets/{id}/fixed-expenses/{feId}:
     put:
       operationId: updateFixedExpense
@@ -6056,62 +6069,13 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /rest/v1/budgets/{id}/reports/commitments:
-    get:
-      operationId: getCommitmentReport
-      tags: [reports]
-      summary: What the budget owes before spending anything, per period, plus when that drops.
-      description: |
-        Member only. Free callers see the current period and the 3 before it;
-        older periods come back locked with no amounts, and the projection is
-        omitted (projectionLocked true). Pro and Lifetime see everything.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: budgetPersonId
-          in: query
-          required: false
-          description: Restrict to one person, by payment-method attribution. Absent means everyone.
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '200':
-          description: The commitment report.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CommitmentReport'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          description: Not a member of this budget.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: No such budget.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
   /rest/v1/budgets/{id}/reports/category-trends:
     get:
       operationId: getCategoryTrends
       tags: [reports]
       summary: Spending per category across recent periods, and the biggest movers.
       description: |
-        Member only. Same gating as getCommitmentReport: Free callers get
+        Member only. Free callers get
         amounts for the current period and the 3 before it, older periods
         locked. Movers compare the current period with the average of up to 3
         previous periods, so they are always within the free window.
