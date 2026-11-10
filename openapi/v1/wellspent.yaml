@@ -59,7 +59,7 @@ tags:
       budget.
 
   - name: reports
-    description: Cross-period reports (Category trends).
+    description: Cross-period reports (Category trends, Plan scorecard).
 components:
   securitySchemes:
     bearerAuth:
@@ -2145,6 +2145,82 @@ components:
           format: double
           nullable: true
           description: delta as a percentage of planned income.
+
+    ScorecardPeriod:
+      allOf:
+        - $ref: '#/components/schemas/ReportPeriod'
+        - type: object
+          required: [inProgress, planRecorded]
+          description: Amounts are absent when locked; planned figures are absent when no plan was recorded for a closed period.
+          properties:
+            inProgress:
+              type: boolean
+              description: The current period. Judged against today's plan and not scored yet.
+            planRecorded:
+              type: boolean
+              description: False for a closed period with no saved plan (it closed before plans were recorded).
+            plannedSpending:
+              $ref: '#/components/schemas/Money'
+            actualSpending:
+              $ref: '#/components/schemas/Money'
+              description: Spending excluding savings.
+            onPlan:
+              type: boolean
+              nullable: true
+              description: actualSpending at or under plannedSpending; null when not scored.
+            categoriesWithin:
+              type: integer
+              format: int32
+            categoriesPlanned:
+              type: integer
+              format: int32
+              description: Planned categories, savings excluded.
+            savingsPlanned:
+              $ref: '#/components/schemas/Money'
+            savingsActual:
+              $ref: '#/components/schemas/Money'
+            savingsMet:
+              type: boolean
+              nullable: true
+              description: savingsActual at or over savingsPlanned; null when no savings were planned or not scored.
+
+    ScorecardCategory:
+      type: object
+      required: [categoryId, planned, actual]
+      properties:
+        categoryId:
+          type: integer
+          format: int32
+          description: 0 for transactions with no category.
+        planned:
+          $ref: '#/components/schemas/Money'
+        actual:
+          $ref: '#/components/schemas/Money'
+
+    PlanScorecard:
+      type: object
+      required: [periods, current, onPlanCount, scoredCount, streak]
+      properties:
+        periods:
+          type: array
+          description: Oldest first; the last is the current period.
+          items:
+            $ref: '#/components/schemas/ScorecardPeriod'
+        current:
+          type: array
+          description: The current period by category (savings excluded), largest plan first.
+          items:
+            $ref: '#/components/schemas/ScorecardCategory'
+        onPlanCount:
+          type: integer
+          format: int32
+        scoredCount:
+          type: integer
+          format: int32
+        streak:
+          type: integer
+          format: int32
+          description: Consecutive on-plan periods back from the latest scored one.
 
     CategoryTrendsReport:
       type: object
@@ -6066,6 +6142,62 @@ paths:
                 $ref: '#/components/schemas/Error'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/budgets/{id}/reports/plan-scorecard:
+    get:
+      operationId: getPlanScorecard
+      tags: [reports]
+      summary: Each recent period's spending against the plan it had.
+      description: |
+        Member only. Closed periods are judged against the plan saved when they
+        closed; the current one against today's plan, unscored. Free callers
+        get the current period and the 3 before it, older ones locked.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: periods
+          in: query
+          required: false
+          description: How many recent periods, 1-12. Defaults to 6.
+          schema:
+            type: integer
+            format: int32
+        - name: budgetPersonId
+          in: query
+          required: false
+          description: Restrict to one person's share of the plan and their spending. Absent means everyone.
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: The scorecard.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanScorecard'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Not a member of this budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No such budget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           $ref: '#/components/responses/InternalError'
 
