@@ -143,6 +143,10 @@ message Transaction {
   // deletable, since deleting one is how a user says "I already settled this".
   // Empty = an ordinary transaction the user or a Plaid sync created.
   string carried_from_budget_period_id = 19;
+  // What the movement is, separate from its category: "spend", "refund",
+  // "income", "transfer" or "payment". Income and payment never count as
+  // spending; the rest do, signed by direction. See docs/features/transaction-flow.md.
+  string flow = 20;
 }
 
 // Profile-level template for a recurring fixed expense.

@@ -2124,6 +2124,28 @@ components:
           type: boolean
           description: True for Free callers; the projection is Pro.
 
+    FlowTotals:
+      type: object
+      required: [income, refunds, transfersIn, spent, transfersOut, paidToCards]
+      description: |
+        A period's money by flow, as positive magnitudes, skipping excluded rows and
+        unpaid fixed bills like every total. paidToCards counts each card payment once
+        (the larger of its outgoing and incoming legs) and is never spending.
+      properties:
+        income:
+          $ref: '#/components/schemas/Money'
+        refunds:
+          $ref: '#/components/schemas/Money'
+        transfersIn:
+          $ref: '#/components/schemas/Money'
+        spent:
+          $ref: '#/components/schemas/Money'
+          description: Spend-flow rows only; transfers out are separate.
+        transfersOut:
+          $ref: '#/components/schemas/Money'
+        paidToCards:
+          $ref: '#/components/schemas/Money'
+
     TrendPeriod:
       allOf:
         - $ref: '#/components/schemas/ReportPeriod'
@@ -2137,6 +2159,9 @@ components:
               type: number
               format: double
               nullable: true
+            flows:
+              $ref: '#/components/schemas/FlowTotals'
+              description: Money in, out and moved this period. Absent when locked.
             categories:
               type: array
               description: Spending by category, largest first. Empty when locked.
