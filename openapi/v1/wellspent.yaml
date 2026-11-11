@@ -2126,12 +2126,18 @@ components:
 
     FlowTotals:
       type: object
-      required: [income, refunds, transfersIn, spent, transfersOut, paidToCards]
+      required: [moneyIn, moneyOut, income, refunds, transfersIn, spent, transfersOut, paidToCards]
       description: |
         A period's money by flow, as positive magnitudes, skipping excluded rows and
         unpaid fixed bills like every total. paidToCards counts each card payment once
         (the larger of its outgoing and incoming legs) and is never spending.
       properties:
+        moneyIn:
+          $ref: '#/components/schemas/Money'
+          description: income + refunds + transfersIn.
+        moneyOut:
+          $ref: '#/components/schemas/Money'
+          description: spent + transfersOut. Card payments are left out; the purchases already counted.
         income:
           $ref: '#/components/schemas/Money'
         refunds:
