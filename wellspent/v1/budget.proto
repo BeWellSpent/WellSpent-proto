@@ -183,6 +183,8 @@ message FixedExpense {
   // message. Both clients were inventing a substitute anchor and disagreeing:
   // web reported 1/N for an unstarted plan where iOS reported 0/N.
   int32 payments_made = 18;
+  // "spend", "transfer" or "payment"; every bill this template spawns carries it.
+  string flow = 19;
 }
 
 message Category {
