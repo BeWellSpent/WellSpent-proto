@@ -160,12 +160,10 @@ enum SystemCategory {
   SYSTEM_CATEGORY_SHOPPING = 18;
   SYSTEM_CATEGORY_FAMILY = 19;
 
-  // 000036 — always excluded from spending totals, regardless of is_excluded.
-  SYSTEM_CATEGORY_INCOME = 20;
-
-  // 000037
-  SYSTEM_CATEGORY_PAYMENT = 21;
-  SYSTEM_CATEGORY_TRANSFER = 22;
+  // 20-22 were Income, Payment and Transfer (000036/000037), retired by 000068:
+  // that meaning lives in Transaction.flow now.
+  reserved 20, 21, 22;
+  reserved "SYSTEM_CATEGORY_INCOME", "SYSTEM_CATEGORY_PAYMENT", "SYSTEM_CATEGORY_TRANSFER";
 
   // 000046 — added for Plaid's TRANSPORTATION and RENT_AND_UTILITIES primaries.
   SYSTEM_CATEGORY_TRANSPORTATION = 23;

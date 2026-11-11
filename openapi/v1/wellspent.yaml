@@ -1762,8 +1762,11 @@ components:
 
     FixedExpense:
       type: object
-      required: [id, budgetProfileId, name, plannedAmount, categoryId, dayOfMonth, isActive, intervalMonths, nextDueDate, frequencyUnit, intervalWeeks, dayOfWeek, totalPayments, isInstallmentPlan, paymentsMade, remainingBalance]
+      required: [id, budgetProfileId, name, plannedAmount, categoryId, flow, dayOfMonth, isActive, intervalMonths, nextDueDate, frequencyUnit, intervalWeeks, dayOfWeek, totalPayments, isInstallmentPlan, paymentsMade, remainingBalance]
       properties:
+        flow:
+          $ref: '#/components/schemas/TransactionFlow'
+          description: Every bill this template spawns carries it. Spend, transfer or payment.
         id:
           type: string
           format: uuid
@@ -1890,6 +1893,9 @@ components:
           type: string
           format: date
           nullable: true
+        flow:
+          $ref: '#/components/schemas/TransactionFlow'
+          description: Optional; spend for a new template.
         totalPayments:
           type: integer
           format: int32
@@ -1944,6 +1950,9 @@ components:
           type: string
           format: date
           nullable: true
+        flow:
+          $ref: '#/components/schemas/TransactionFlow'
+          description: Optional; omitted keeps the template's current flow.
         totalPayments:
           type: integer
           format: int32
