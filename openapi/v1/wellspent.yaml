@@ -1541,9 +1541,19 @@ components:
       type: string
       enum: [unspecified, fixed, variable]
 
+    TransactionFlow:
+      type: string
+      enum: [spend, refund, income, transfer, payment]
+      description: |
+        What a movement of money is, separate from its category (what it was for).
+        spend, refund and transfer count toward their category's spending, signed by
+        direction; income and payment never count as spending. When a write omits it,
+        it's inferred: Payment category → payment, Income → income, Transfer → transfer,
+        otherwise refund for a negative amount and spend for the rest.
+
     Transaction:
       type: object
-      required: [id, amount, plannedAmount, categoryId, transactionFrequency, transactionType, isPaid, isExcluded, isPlaidImported, fixedExpensePaidOffEarly]
+      required: [id, amount, plannedAmount, categoryId, transactionFrequency, transactionType, flow, isPaid, isExcluded, isPlaidImported, fixedExpensePaidOffEarly]
       properties:
         id:
           type: string
@@ -1580,6 +1590,8 @@ components:
           $ref: '#/components/schemas/RecurringFrequency'
         transactionType:
           $ref: '#/components/schemas/ExpenseType'
+        flow:
+          $ref: '#/components/schemas/TransactionFlow'
         isPaid:
           type: boolean
         paidAt:
@@ -1595,7 +1607,7 @@ components:
           type: boolean
         isPlaidImported:
           type: boolean
-          description: When true, only categoryId may be changed via updateTransaction.
+          description: When true, only categoryId and flow may be changed via updateTransaction.
         installmentFixedExpenseId:
           type: string
           format: uuid
@@ -1664,11 +1676,14 @@ components:
           $ref: '#/components/schemas/RecurringFrequency'
         transactionType:
           $ref: '#/components/schemas/ExpenseType'
+        flow:
+          $ref: '#/components/schemas/TransactionFlow'
+          description: Optional; inferred from the category and amount when omitted.
 
     UpdateTransactionRequest:
       type: object
       required: [amount, plannedAmount]
-      description: A full edit, except once the transaction's period has archived or it is Plaid-imported — then only categoryId may actually change; every other field must be resubmitted unchanged.
+      description: A full edit, except once the transaction's period has archived or it is Plaid-imported — then only categoryId and flow may actually change; every other field must be resubmitted unchanged.
       properties:
         name:
           type: string
@@ -1693,6 +1708,9 @@ components:
           $ref: '#/components/schemas/RecurringFrequency'
         transactionType:
           $ref: '#/components/schemas/ExpenseType'
+        flow:
+          $ref: '#/components/schemas/TransactionFlow'
+          description: Optional; when omitted it's re-inferred from the (possibly new) category and amount.
 
     MarkTransactionAsPaidRequest:
       type: object
