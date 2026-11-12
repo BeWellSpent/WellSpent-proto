@@ -97,8 +97,14 @@ components:
           $ref: '#/components/headers/CacheControl'
     RateLimited:
       description: |
-        Too many requests from this IP. The rate limiter wraps every route on
-        the mux, REST and Connect alike, so any endpoint here can return this.
+        Too many requests from this IP. A per-IP limiter wraps every route, so any
+        endpoint can return this; register and login have tighter limits of their own,
+        tighter still without App Attest.
+      headers:
+        Retry-After:
+          description: Seconds until a request from this IP will be accepted again.
+          schema:
+            type: integer
       content:
         application/json:
           schema:
@@ -657,6 +663,57 @@ components:
         deviceId:
           type: string
           description: Client-generated, stable per app install (not a platform identifier like IDFV). Scopes the issued refresh token to this device.
+        appAttest:
+          $ref: '#/components/schemas/AppAttestAssertion'
+        appAttestUnavailable:
+          $ref: '#/components/schemas/AppAttestUnavailable'
+
+    AppAttestAssertion:
+      type: object
+      required: [keyId, assertion, challenge]
+      description: |
+        Proof the request comes from the genuine iOS app (docs/features/app-attest.md):
+        an App Attest assertion over SHA-256 of "<action>|<email>|<challenge>", where
+        action is "register" or "login" and email is as typed (trimmed, lowercased).
+      properties:
+        keyId:
+          type: string
+          description: The attested key's ID, base64, as DCAppAttestService returned it.
+        assertion:
+          type: string
+          description: The assertion object, base64.
+        challenge:
+          type: string
+          description: A challenge from createAppAttestChallenge; single-use, 5 minutes.
+
+    AppAttestUnavailable:
+      type: string
+      enum: [unsupported, service_error]
+      description: Sent instead of appAttest when the device can't attest. Allowed, but under a much tighter rate limit.
+
+    AppAttestChallenge:
+      type: object
+      required: [challenge, expiresAt]
+      properties:
+        challenge:
+          type: string
+          description: Base64; single-use.
+        expiresAt:
+          type: string
+          format: date-time
+
+    AppAttestKeyRequest:
+      type: object
+      required: [keyId, attestation, challenge]
+      properties:
+        keyId:
+          type: string
+          description: Base64, as DCAppAttestService.generateKey returned it.
+        attestation:
+          type: string
+          description: The attestation object from attestKey, base64, over SHA-256 of the challenge.
+        challenge:
+          type: string
 
     LoginRequest:
       type: object
@@ -673,6 +730,10 @@ components:
         deviceId:
           type: string
           description: Client-generated, stable per app install. Scopes the issued refresh token to this device — a second login with the same deviceId replaces, rather than adds to, that device's refresh token.
+        appAttest:
+          $ref: '#/components/schemas/AppAttestAssertion'
+        appAttestUnavailable:
+          $ref: '#/components/schemas/AppAttestUnavailable'
 
     LoginResponse:
       type: object
@@ -3022,6 +3083,51 @@ paths:
           $ref: '#/components/responses/InternalError'
 
   # ── auth ──────────────────────────────────────────────────────────────────
+
+  /rest/v1/app-attest/challenge:
+    post:
+      operationId: createAppAttestChallenge
+      tags: [auth]
+      summary: A one-time challenge for attesting a key or signing a request.
+      security: []
+      responses:
+        '200':
+          description: The challenge.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppAttestChallenge'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rest/v1/app-attest/keys:
+    post:
+      operationId: registerAppAttestKey
+      tags: [auth]
+      summary: Verify an App Attest attestation and store the key.
+      description: Once per app install (and again after a reinstall, when Apple reports the old key invalid).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppAttestKeyRequest'
+      responses:
+        '204':
+          description: Verified and stored.
+        '400':
+          description: The attestation didn't verify, or the challenge was unknown, used or expired.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /rest/v1/auth/register:
     post:
