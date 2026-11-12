@@ -242,6 +242,11 @@ message TransactionReview {
   // Resolved owner of each side (via payment method), 0 = unattributed.
   int64 transaction_person_id = 13;
   int64 matched_transaction_person_id = 14;
+  // Where the flagged transaction came from, for the Review screen.
+  google.protobuf.Timestamp transaction_date = 15;
+  string transaction_payment_method_name = 16;
+  bool transaction_imported = 17; // true = bank feed (Plaid), false = typed in
+  Money matched_transaction_planned_amount = 18;
 }
 
 // ─── Expense summary ──────────────────────────────────────────────────────────

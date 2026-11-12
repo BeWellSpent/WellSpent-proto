@@ -2595,6 +2595,20 @@ components:
           type: integer
           format: int64
           description: 0 = unattributed.
+        transactionDate:
+          type: string
+          format: date
+          nullable: true
+          description: The flagged transaction's own date.
+        transactionPaymentMethodName:
+          type: string
+          nullable: true
+          description: The flagged transaction's payment method (its alias when set).
+        transactionImported:
+          type: boolean
+          description: True when the flagged transaction came from a bank feed (Plaid), false when typed in.
+        matchedTransactionPlannedAmount:
+          $ref: '#/components/schemas/Money'
 
     TransactionReviewResponse:
       type: object
