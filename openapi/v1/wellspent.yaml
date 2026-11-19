@@ -2385,6 +2385,9 @@ components:
         plannedExpenses:
           $ref: '#/components/schemas/Money'
           description: spentPlanned minus savedPlanned — the person's planned spending without savings. Optional; absent from servers that predate it.
+        expensesActual:
+          $ref: '#/components/schemas/Money'
+          description: spentActual minus savedActual — what the person actually spent without savings, the figure compared with plannedExpenses. Optional; absent from servers that predate it.
         plannedRemaining:
           $ref: '#/components/schemas/Money'
           description: incomePlanned minus spentPlanned — what is left of the person's planned income after their plan, savings included. Negative when the plan exceeds their income. Optional.
