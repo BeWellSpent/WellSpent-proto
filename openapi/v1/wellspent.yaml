@@ -2453,11 +2453,15 @@ components:
         allocatedTotal:
           $ref: '#/components/schemas/Money'
           nullable: true
-          description: Manual allocations for this category, summed across people. plannedTotal equals this when it is non-zero, otherwise fixedDueTotal — they do not add. Set on planCategories rows only; null when zero.
+          description: Manual allocations for this category, summed across people and the shared (no person) amount. Each owner's manual amount wins over that owner's own fixed transactions; plannedTotal is allocatedTotal plus fixedOutsideManualTotal. Set on planCategories rows only; null when zero.
         fixedDueTotal:
           $ref: '#/components/schemas/Money'
           nullable: true
-          description: Fixed transactions due this period for this category. Set on planCategories rows only; null when zero. Both this and allocatedTotal can be set; the allocation wins in plannedTotal.
+          description: Fixed transactions due this period for this category, every owner. Set on planCategories rows only; null when zero. fixedDueTotal minus fixedOutsideManualTotal is the part that sits inside a manual amount.
+        fixedOutsideManualTotal:
+          $ref: '#/components/schemas/Money'
+          nullable: true
+          description: Fixed transactions due this period whose owner (a person, or no one) has no manual amount in this category, so they add to plannedTotal rather than sit inside an allocation. Set on planCategories rows only; null when zero.
 
     GetExpenseSummaryResponse:
       type: object
