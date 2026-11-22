@@ -2390,10 +2390,25 @@ components:
           description: spentActual minus savedActual — what the person actually spent without savings, the figure compared with plannedExpenses. Optional; absent from servers that predate it.
         plannedSpent:
           $ref: '#/components/schemas/Money'
-          description: The part of expensesActual spent in categories this person has a plan for (allocated or a Fixed bill due), compared with plannedExpenses. Optional.
+          description: The plan used, compared with plannedExpenses. Per planned category, paid Fixed transactions count first at their real amount and unpaid ones reserve their planned amount; other spending fills what's left. Never above a category's plan. Optional.
         otherSpent:
           $ref: '#/components/schemas/Money'
-          description: expensesActual minus plannedSpent — spending in categories with no plan for this person, uncategorized included. Optional.
+          description: expensesActual minus plannedSpent — overPlan plus unplanned. Optional.
+        overPlan:
+          $ref: '#/components/schemas/Money'
+          description: Spending in planned categories beyond what fit in their plan. Optional.
+        unplanned:
+          $ref: '#/components/schemas/Money'
+          description: Spending in categories with no plan for this person, uncategorized included. Optional.
+        fixedToPay:
+          $ref: '#/components/schemas/Money'
+          description: Planned amount of the person's unpaid Fixed transactions this period, savings excluded. Optional.
+        savingsToPay:
+          $ref: '#/components/schemas/Money'
+          description: savedPlanned minus savedActual, never below zero. Optional.
+        leftAfterBills:
+          $ref: '#/components/schemas/Money'
+          description: incomePlanned minus spentActual minus fixedToPay minus savingsToPay. Negative means the person needs that much transferred to finish the period and its savings. Optional.
         plannedRemaining:
           $ref: '#/components/schemas/Money'
           description: incomePlanned minus spentPlanned — what is left of the person's planned income after their plan, savings included. Negative when the plan exceeds their income. Optional.
