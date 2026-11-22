@@ -2403,12 +2403,9 @@ components:
         fixedToPay:
           $ref: '#/components/schemas/Money'
           description: Planned amount of the person's unpaid Fixed transactions this period, savings excluded. Optional.
-        savingsToPay:
-          $ref: '#/components/schemas/Money'
-          description: savedPlanned minus savedActual, never below zero. Optional.
         leftAfterBills:
           $ref: '#/components/schemas/Money'
-          description: incomePlanned minus spentActual minus fixedToPay. Savings still to transfer is optional and not subtracted. Negative means the person needs that much transferred to cover their bills. Optional.
+          description: incomePlanned minus spentActual minus fixedToPay. Planned savings is optional and not subtracted. Negative means the person needs that much transferred to cover their bills. Optional.
         plannedRemaining:
           $ref: '#/components/schemas/Money'
           description: incomePlanned minus spentPlanned — what is left of the person's planned income after their plan, savings included. Negative when the plan exceeds their income. Optional.
