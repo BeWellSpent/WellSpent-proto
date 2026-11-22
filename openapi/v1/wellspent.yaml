@@ -2388,18 +2388,12 @@ components:
         expensesActual:
           $ref: '#/components/schemas/Money'
           description: spentActual minus savedActual — what the person actually spent without savings, the figure compared with plannedExpenses. Optional; absent from servers that predate it.
-        fixedPaid:
+        plannedSpent:
           $ref: '#/components/schemas/Money'
-          description: Actual amount of the person's paid Fixed transactions this period, savings excluded. Optional.
-        fixedToPay:
-          $ref: '#/components/schemas/Money'
-          description: Planned amount of the person's unpaid Fixed transactions this period, savings excluded. Optional.
-        fixedTotal:
-          $ref: '#/components/schemas/Money'
-          description: fixedPaid plus fixedToPay. Optional.
+          description: The part of expensesActual spent in categories this person has a plan for (allocated or a Fixed bill due), compared with plannedExpenses. Optional.
         otherSpent:
           $ref: '#/components/schemas/Money'
-          description: expensesActual minus fixedPaid — spending that isn't a Fixed transaction. Optional.
+          description: expensesActual minus plannedSpent — spending in categories with no plan for this person, uncategorized included. Optional.
         plannedRemaining:
           $ref: '#/components/schemas/Money'
           description: incomePlanned minus spentPlanned — what is left of the person's planned income after their plan, savings included. Negative when the plan exceeds their income. Optional.
